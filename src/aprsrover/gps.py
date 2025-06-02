@@ -67,8 +67,9 @@ class GPS:
         Raises:
             GPSError: If connection to gpsd fails.
         """
+        self.gpsd = gpsd
         try:
-            gpsd.connect()
+            self.gpsd.connect()
         except Exception as exc:
             raise GPSError(f"Failed to connect to gpsd: {exc}") from exc
 
