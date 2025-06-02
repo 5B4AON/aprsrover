@@ -42,15 +42,20 @@ except GPSError as e:
 
 ```python
 from aprsrover.tracks import Tracks, TracksError
+import time
 
 tracks = Tracks()  # Uses default Adafruit_PCA9685.PCA9685()
 
 try:
-    # Move left track forward at 50% speed
+    # Move left track forward at 50% speed for 1 second
     tracks.left_track(50)
+    time.sleep(1)
+    tracks.left_track(0)
 
-    # Move right track reverse at 30% speed
+    # Move right track reverse at 30% speed for 1 second
     tracks.right_track(-30)
+    time.sleep(1)
+    tracks.right_track(0)
 
     # Move both tracks: left at 60% forward, right at 60% reverse, for 2.5 seconds
     tracks.move(60, -60, 2.5)
