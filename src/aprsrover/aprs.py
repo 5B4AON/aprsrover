@@ -169,7 +169,6 @@ class Aprs:
             frame: The received frame.
         """
         info = frame.info.decode("UTF-8")
-        print(info)
         for mycall, callbacks in self._observers.items():
             if f":{mycall}" in info:
                 for callback in callbacks:
