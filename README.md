@@ -18,9 +18,9 @@ from aprsrover.gps import GPS, GPSError
 gps = GPS()
 try:
     gps.connect()
-    # Get APRS DMM format
+    # Get APRS DMM format for APRS transmission
     lat_dmm, lon_dmm, tm, bearing = gps.get_gps_data_dmm()
-    # Get decimal degrees format
+    # Get decimal degrees format for calculations
     lat_dec, lon_dec, iso_time, bearing = gps.get_gps_data_decimal()
     print("APRS DMM:", lat_dmm, lon_dmm, tm, bearing)
     print("Decimal:", lat_dec, lon_dec, iso_time, bearing)
@@ -81,47 +81,53 @@ except TracksError as e:
 
 ```python
 from aprsrover.aprs import Aprs
+import asyncio
 
 def my_frame_handler(frame):
     print("Received frame:", frame)
 
-aprs = Aprs(host="localhost", port=8001)
-aprs.connect()  # Establish connection to KISS TNC
+async def main():
+    aprs = Aprs(host="localhost", port=8001)
+    await aprs.connect()  # Establish connection to KISS TNC (async, must be awaited)
 
-# Register an observer callback for your callsign
-aprs.register_observer("MYCALL", my_frame_handler)
+    # Register an observer callback for your callsign
+    aprs.register_observer("MYCALL", my_frame_handler)
 
-# To register multiple callbacks for the same callsign:
-aprs.register_observer("MYCALL", lambda frame: print("Another handler", frame))
+    # To register multiple callbacks for the same callsign:
+    aprs.register_observer("MYCALL", lambda frame: print("Another handler", frame))
 
-# To unregister a specific callback:
-aprs.unregister_observer("MYCALL", my_frame_handler)
+    # To unregister a specific callback:
+    aprs.unregister_observer("MYCALL", my_frame_handler)
 
-# To unregister all callbacks for a callsign:
-aprs.unregister_observer("MYCALL")
+    # To unregister all callbacks for a callsign:
+    aprs.unregister_observer("MYCALL")
 
-# To clear all observers:
-aprs.clear_observers()
+    # To clear all observers:
+    aprs.clear_observers()
 
-# Send a message (with validation)
-aprs.send_my_message_no_ack(
-    mycall="MYCALL",
-    path=["WIDE1-1"],
-    recipient="DEST",
-    message="Hello APRS"
-)
+    # Send a message (with validation)
+    aprs.send_my_message_no_ack(
+        mycall="MYCALL",
+        path=["WIDE1-1"],
+        recipient="DEST",
+        message="Hello APRS"
+    )
 
-# Send an object (with validation)
-aprs.send_my_object_no_course_speed(
-    mycall="MYCALL",
-    path=["WIDE1-1"],
-    time_dhm="011234z",           # 6 digits + 'z'
-    lat_dmm="5132.07N",           # 7 digits + N/S
-    long_dmm="00007.40W",         # DMM format + E/W
-    symbol_id="/",                # 1 character
-    symbol_code="O",              # 1 character
-    comment="Test object"         # up to 43 characters
-)
+    # Send an object (with validation)
+    aprs.send_my_object_no_course_speed(
+        mycall="MYCALL",
+        path=["WIDE1-1"],
+        time_dhm="011234z",           # 6 digits + 'z'
+        lat_dmm="5132.07N",           # 7 digits + N/S
+        long_dmm="00007.40W",         # DMM format + E/W
+        symbol_id="/",                # 1 character
+        symbol_code="O",              # 1 character
+        comment="Test object"         # up to 43 characters
+    )
+
+if __name__ == "__main__":
+    # Run the async main function
+    asyncio.run(main())
 ```
 
 **Note:**  
@@ -137,7 +143,7 @@ aprs.send_my_object_no_course_speed(
 See the `examples/` directory for real-world usage scenarios, including:
 - Integrating APRS, GPS, and Tracks together for remote rover control and telemetry.
 - Registering APRS message callbacks to control rover movement or respond with position.
-- Sending an APRS message when the rover arrives at a destination, and periodic object reports as it moves.
+- Sending an APRS message and object report when the rover arrives at a destination, and periodic object reports as it moves, using decimal coordinates for calculations and DMM/DHM for APRS.
 
 ## Project Structure
 - `gps.py`: Main GPS utility module

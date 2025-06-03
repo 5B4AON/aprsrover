@@ -6,6 +6,7 @@ This script demonstrates:
 - Handling incoming APRS messages to control rover tracks or report position
 - Sending acknowledgements if requested
 - Using GPS to report current position as an APRS object
+- Using decimal coordinates for calculations and DMM/DHM for APRS transmission
 
 Requirements:
     - KISS TNC accessible (e.g., Direwolf running in KISS mode)
@@ -19,6 +20,7 @@ Run this script from the project root:
 from aprsrover.aprs import Aprs, AprsError
 from aprsrover.gps import GPS, GPSError
 from aprsrover.tracks import Tracks, TracksError
+import asyncio
 from ax253 import Frame
 
 CALLSIGN = "5B4AON-9"
@@ -123,9 +125,9 @@ def pos_callback(frame: Frame):
     except (GPSError, AprsError) as e:
         print(f"Position callback error: {e}")
 
-def main() -> None:
+async def main() -> None:
     try:
-        aprs.connect()
+        await aprs.connect()
         gps.connect()
         aprs.register_observer(CALLSIGN, move_callback)
         aprs.register_observer(CALLSIGN, pos_callback)
@@ -137,4 +139,4 @@ def main() -> None:
         print(f"APRS error: {ae}")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

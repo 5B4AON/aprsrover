@@ -53,6 +53,9 @@ class Aprs:
     """
     APRS KISS TNC interface supporting observer pattern for frame reception.
     """
+    
+    KISS_DEFAULT_HOST = "localhost"
+    KISS_DEFAULT_PORT = 8001
 
     def __init__(self, host: Optional[str] = None, port: Optional[int] = None) -> None:
         """
@@ -63,8 +66,8 @@ class Aprs:
             port: TCP port of the KISS TNC.
         """
         self.APRS_SW_VERSION = "APDW16"  # DireWolf version
-        self.host = host or "localhost"
-        self.port = port or 8001
+        self.host = host or self.KISS_DEFAULT_HOST
+        self.port = port or self.KISS_DEFAULT_PORT  
         self.transport = None
         self.kiss_protocol = None
         self.settings = {kiss.Command.TX_DELAY: 50, kiss.Command.TX_TAIL: 10}
@@ -72,7 +75,7 @@ class Aprs:
         # dict[str, list[Callable[[Frame], None]]]: maps mycall to list of callbacks
         self._observers: dict[str, list[Callable[[Frame], None]]] = {}
 
-    def connect(self) -> None:
+    async def connect(self) -> None:
         """
         Establish TCP connection to the KISS TNC and set up frame callback.
 
@@ -80,7 +83,7 @@ class Aprs:
             AprsError: If connection fails.
         """
         try:
-            self.transport, self.kiss_protocol = kiss.create_tcp_connection(
+            self.transport, self.kiss_protocol = await kiss.create_tcp_connection(
                 host=self.host, port=self.port, kiss_settings=self.settings
             )
             self.kiss_protocol.read(self._notify_observers)

@@ -3,7 +3,13 @@ Example: Send APRS message when rover arrives at a destination
 
 This script polls the current GPS position every 10 seconds and, when the rover is within
 20 meters of the provided destination coordinates, sends an APRS message from 5B4AON-9
-to 5B4AON-7 with the message "Arrived at destination".
+to 5B4AON-7 with the message "Arrived at destination". It also sends a final APRS object
+report at arrival, and every 5 minutes, if the rover has moved more than 20 meters from
+its last reported position, it sends an object report with the current position.
+
+- Uses decimal coordinates for accurate distance checking.
+- Uses DMM and DHM formats only when sending APRS messages/objects.
+- Designed for integration with KISS TNC and gpsd.
 
 Requirements:
     - KISS TNC accessible (e.g., Direwolf running in KISS mode)
@@ -17,6 +23,7 @@ import time
 import math
 from aprsrover.aprs import Aprs, AprsError
 from aprsrover.gps import GPS, GPSError
+import asyncio
 
 CALLSIGN_FROM = "5B4AON-9"
 CALLSIGN_TO = "5B4AON-7"
@@ -39,7 +46,7 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c
 
-def main() -> None:
+async def main() -> None:
     """
     Polls the current GPS position every 10 seconds. When the rover is within 20 meters of the
     destination, sends an APRS message and a final object report. Every 5 minutes, if the rover
@@ -53,7 +60,7 @@ def main() -> None:
     arrived = False
 
     try:
-        aprs.connect()
+        await aprs.connect()
         gps.connect()
     except (AprsError, GPSError) as e:
         print(f"Initialization error: {e}")
@@ -158,4 +165,4 @@ def main() -> None:
             break
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

@@ -6,9 +6,9 @@ as well as utility functions for coordinate and time formatting for APRS.
 
 Features:
 - Connect to GPSD and retrieve current GPS data (latitude, longitude, time, bearing)
-- Retrieve GPS data in either APRS DMM format or decimal degrees
+- Retrieve GPS data in either APRS DMM format (for APRS) or decimal degrees (for calculations)
 - `get_gps_data_dmm`: Returns (lat_dmm, lon_dmm, time_ddhhmmz, bearing) for APRS
-- `get_gps_data_decimal`: Returns (lat_decimal, lon_decimal, iso_time, bearing) for general use
+- `get_gps_data_decimal`: Returns (lat_decimal, lon_decimal, iso_time, bearing) for calculations
 - Convert decimal degrees to degrees and decimal minutes (DMM) format
 - Convert ISO timestamps to APRS DDHHMMz format
 - Normalize bearing values for APRS
@@ -20,9 +20,9 @@ Usage example:
 
     gps = GPS()
     gps.connect()
-    # Get APRS DMM format
+    # Get APRS DMM format for APRS transmission
     lat_dmm, lon_dmm, tm, bearing = gps.get_gps_data_dmm()
-    # Get decimal degrees format
+    # Get decimal degrees format for calculations
     lat_dec, lon_dec, iso_time, bearing = gps.get_gps_data_decimal()
 
 See the README.md for more usage examples and parameter details.
