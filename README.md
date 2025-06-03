@@ -79,6 +79,8 @@ except TracksError as e:
 
 ## APRS Usage
 
+### Receiving Frames: Registering Observers and Listening for Messages
+
 ```python
 from aprsrover.aprs import Aprs
 import asyncio
@@ -96,14 +98,30 @@ async def main():
     # To register multiple callbacks for the same callsign:
     aprs.register_observer("5B4AON-9", lambda frame: print("Another handler", frame))
 
-    # To unregister a specific callback:
-    aprs.unregister_observer("5B4AON-9", my_frame_handler)
+    # Start the async frame reception loop (runs forever and notifies observers)
+    await aprs.run()
 
-    # To unregister all callbacks for a callsign:
-    aprs.unregister_observer("5B4AON-9")
+if __name__ == "__main__":
+    asyncio.run(main())
+```
 
-    # To clear all observers:
-    aprs.clear_observers()
+**Note:**  
+- The `connect()` and `run()` methods are asynchronous and must be awaited.
+- Observer callbacks must accept a single argument (the received frame).
+- You must provide your callsign when registering or unregistering observers.
+- Multiple callbacks can be registered for the same callsign.
+
+---
+
+### Sending APRS Messages and Object Reports
+
+```python
+from aprsrover.aprs import Aprs
+import asyncio
+
+async def main():
+    aprs = Aprs(host="localhost", port=8001)
+    await aprs.connect()
 
     # Send a message (with validation)
     aprs.send_my_message_no_ack(
@@ -126,15 +144,12 @@ async def main():
     )
 
 if __name__ == "__main__":
-    # Run the async main function
     asyncio.run(main())
 ```
 
 **Note:**  
-- Observer callbacks must accept a single argument (the received frame).
-- You must provide your callsign when registering or unregistering observers.
-- Multiple callbacks can be registered for the same callsign.
 - All APRS message/object sending methods validate their parameters and raise exceptions on invalid input.
+- Both `mycall` and `recipient` must be 3-6 uppercase alphanumeric characters, a dash, then 1-2 digits (e.g., `5B4AON-9`), with a maximum total length of 9.
 - For `send_my_object_no_course_speed`, `time_dhm` must be 6 digits followed by 'z' (e.g., '011234z'), and `lat_dmm` must be 7 digits (with optional dot) followed by 'N' or 'S' (e.g., '5132.07N').
 - Requires the `kiss3` and `ax253` libraries for KISS TNC and AX.25 frame handling.
 
