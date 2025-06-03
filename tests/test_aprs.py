@@ -112,24 +112,23 @@ class TestAprs(unittest.TestCase):
     def test_send_my_message_no_ack_valid(self):
         """Test sending a valid APRS message without ack."""
         self.aprs.send_my_message_no_ack(
-            mycall="MYCALL",
+            mycall="N0CALL-1",
             path=["WIDE1-1"],
-            recipient="DEST",
+            recipient="5B4AON-12",
             message="Hello APRS"
         )
         self.assertTrue(self.aprs.kiss_protocol.write.called)
         args, kwargs = self.aprs.kiss_protocol.write.call_args
         frame = args[0]
-        self.assertIn(b':DEST     :Hello APRS', frame.info)
+        self.assertIn(b':5B4AON-12:Hello APRS', frame.info)
 
     def test_send_my_message_no_ack_not_initialized(self):
-        """Test sending a message when not initialized raises RuntimeError."""
         self.aprs.initialized = False
         with self.assertRaises(AprsError):
             self.aprs.send_my_message_no_ack(
-                mycall="MYCALL",
+                mycall="N0CALL-1",
                 path=["WIDE1-1"],
-                recipient="DEST",
+                recipient="5B4AON-9",
                 message="Hello"
             )
 
@@ -137,32 +136,109 @@ class TestAprs(unittest.TestCase):
         self.aprs.kiss_protocol.write.side_effect = Exception("fail")
         with self.assertRaises(AprsError):
             self.aprs.send_my_message_no_ack(
-                mycall="MYCALL",
+                mycall="N0CALL-1",
                 path=["WIDE1-1"],
-                recipient="DEST",
+                recipient="5B4AON-9",
                 message="Hello"
             )
 
     def test_send_my_message_no_ack_invalid_mycall(self):
+        # Not uppercase
         with self.assertRaises(ValueError):
             self.aprs.send_my_message_no_ack(
-                mycall="mycall",  # not uppercase
+                mycall="n0call-1",
                 path=["WIDE1-1"],
-                recipient="DEST",
+                recipient="5B4AON-9",
                 message="Hello"
             )
+        # Too short (less than 3 before dash)
         with self.assertRaises(ValueError):
             self.aprs.send_my_message_no_ack(
-                mycall="MC",  # too short
+                mycall="AB-1",
                 path=["WIDE1-1"],
-                recipient="DEST",
+                recipient="5B4AON-9",
                 message="Hello"
             )
+        # Too long (more than 6 before dash)
         with self.assertRaises(ValueError):
             self.aprs.send_my_message_no_ack(
-                mycall="MYCALL1234",  # too long
+                mycall="ABCDEFG-1",
                 path=["WIDE1-1"],
-                recipient="DEST",
+                recipient="5B4AON-9",
+                message="Hello"
+            )
+        # No dash
+        with self.assertRaises(ValueError):
+            self.aprs.send_my_message_no_ack(
+                mycall="N0CALL1",
+                path=["WIDE1-1"],
+                recipient="5B4AON-9",
+                message="Hello"
+            )
+        # Letters after dash
+        with self.assertRaises(ValueError):
+            self.aprs.send_my_message_no_ack(
+                mycall="N0CALL-AA",
+                path=["WIDE1-1"],
+                recipient="5B4AON-9",
+                message="Hello"
+            )
+        # Too many digits after dash
+        with self.assertRaises(ValueError):
+            self.aprs.send_my_message_no_ack(
+                mycall="N0CALL-123",
+                path=["WIDE1-1"],
+                recipient="5B4AON-9",
+                message="Hello"
+            )
+
+    def test_send_my_message_no_ack_invalid_recipient(self):
+        # Not uppercase
+        with self.assertRaises(ValueError):
+            self.aprs.send_my_message_no_ack(
+                mycall="N0CALL-1",
+                path=["WIDE1-1"],
+                recipient="5b4aon-9",
+                message="Hello"
+            )
+        # Too short (less than 3 before dash)
+        with self.assertRaises(ValueError):
+            self.aprs.send_my_message_no_ack(
+                mycall="N0CALL-1",
+                path=["WIDE1-1"],
+                recipient="AB-1",
+                message="Hello"
+            )
+        # Too long (more than 6 before dash)
+        with self.assertRaises(ValueError):
+            self.aprs.send_my_message_no_ack(
+                mycall="N0CALL-1",
+                path=["WIDE1-1"],
+                recipient="ABCDEFG-1",
+                message="Hello"
+            )
+        # No dash
+        with self.assertRaises(ValueError):
+            self.aprs.send_my_message_no_ack(
+                mycall="N0CALL-1",
+                path=["WIDE1-1"],
+                recipient="5B4AON9",
+                message="Hello"
+            )
+        # Letters after dash
+        with self.assertRaises(ValueError):
+            self.aprs.send_my_message_no_ack(
+                mycall="N0CALL-1",
+                path=["WIDE1-1"],
+                recipient="5B4AON-AA",
+                message="Hello"
+            )
+        # Too many digits after dash
+        with self.assertRaises(ValueError):
+            self.aprs.send_my_message_no_ack(
+                mycall="N0CALL-1",
+                path=["WIDE1-1"],
+                recipient="5B4AON-123",
                 message="Hello"
             )
 
@@ -179,29 +255,6 @@ class TestAprs(unittest.TestCase):
                 mycall="MYCALL",
                 path=[""],  # empty string in path
                 recipient="DEST",
-                message="Hello"
-            )
-
-    def test_send_my_message_no_ack_invalid_recipient(self):
-        with self.assertRaises(ValueError):
-            self.aprs.send_my_message_no_ack(
-                mycall="MYCALL",
-                path=["WIDE1-1"],
-                recipient="dest",  # not uppercase
-                message="Hello"
-            )
-        with self.assertRaises(ValueError):
-            self.aprs.send_my_message_no_ack(
-                mycall="MYCALL",
-                path=["WIDE1-1"],
-                recipient="",  # too short
-                message="Hello"
-            )
-        with self.assertRaises(ValueError):
-            self.aprs.send_my_message_no_ack(
-                mycall="MYCALL",
-                path=["WIDE1-1"],
-                recipient="DEST123456",  # too long
                 message="Hello"
             )
 

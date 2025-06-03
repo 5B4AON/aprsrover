@@ -4,7 +4,7 @@ aprs.py - APRS KISS TNC interface and observer utilities
 This module provides the Aprs class for interacting with a KISS TNC (Terminal Node Controller)
 using the AX.25 protocol for APRS (Automatic Packet Reporting System) messaging. It supports:
 
-- Connecting to a KISS TNC over TCP
+- Connecting to a KISS TNC over TCP (async, must be awaited)
 - Sending APRS messages and objects with parameter validation
 - Registering and managing observer callbacks for incoming frames, filtered by callsign
 - Utility methods for extracting messages addressed to a specific callsign
@@ -12,20 +12,20 @@ using the AX.25 protocol for APRS (Automatic Packet Reporting System) messaging.
 
 Usage example:
 
+    import asyncio
     from aprsrover.aprs import Aprs
 
     def my_frame_handler(frame):
         print("Received frame:", frame)
 
-    aprs = Aprs(host="localhost", port=8001)
-    aprs.connect()
-    aprs.register_observer("MYCALL", my_frame_handler)
-    aprs.send_my_message_no_ack(
-        mycall="MYCALL",
-        path=["WIDE1-1"],
-        recipient="YOURCALL",
-        message="Hello APRS"
-    )
+    async def main():
+        aprs = Aprs(host="localhost", port=8001)
+        await aprs.connect()
+        aprs.register_observer("5B4AON-9", my_frame_handler)
+        # Keep the event loop running to receive frames
+        await aprs.run()
+
+    asyncio.run(main())
 
 See the README.md for more usage examples and parameter details.
 
@@ -36,10 +36,12 @@ Dependencies:
 This module is designed to be imported and used from other Python scripts.
 """
 
-from typing import Optional, Callable
+from typing import Optional, Callable, Awaitable
 from ax253 import Frame
 import kiss
 import logging
+import asyncio
+import re
 
 __all__ = ["Aprs", "AprsError"]
 
@@ -52,8 +54,12 @@ class AprsError(Exception):
 class Aprs:
     """
     APRS KISS TNC interface supporting observer pattern for frame reception.
+
+    Note:
+        - The `connect()` and `run()` methods are asynchronous and must be awaited.
+        - Call `await run()` after connecting to start receiving frames and notifying observers.
     """
-    
+
     KISS_DEFAULT_HOST = "localhost"
     KISS_DEFAULT_PORT = 8001
 
@@ -67,17 +73,17 @@ class Aprs:
         """
         self.APRS_SW_VERSION = "APDW16"  # DireWolf version
         self.host = host or self.KISS_DEFAULT_HOST
-        self.port = port or self.KISS_DEFAULT_PORT  
+        self.port = port or self.KISS_DEFAULT_PORT
         self.transport = None
         self.kiss_protocol = None
         self.settings = {kiss.Command.TX_DELAY: 50, kiss.Command.TX_TAIL: 10}
         self.initialized = False
-        # dict[str, list[Callable[[Frame], None]]]: maps mycall to list of callbacks
         self._observers: dict[str, list[Callable[[Frame], None]]] = {}
+        self._run_task: Optional[asyncio.Task] = None
 
     async def connect(self) -> None:
         """
-        Establish TCP connection to the KISS TNC and set up frame callback.
+        Establish TCP connection to the KISS TNC.
 
         Raises:
             AprsError: If connection fails.
@@ -86,13 +92,29 @@ class Aprs:
             self.transport, self.kiss_protocol = await kiss.create_tcp_connection(
                 host=self.host, port=self.port, kiss_settings=self.settings
             )
-            self.kiss_protocol.read(self._notify_observers)
             self.initialized = True
             logging.info(f"Connected to KISS TNC at {self.host}:{self.port}")
         except Exception as e:
             self.initialized = False
             logging.error(f"Failed to connect to KISS TNC: {e}")
             raise AprsError(f"Failed to connect to KISS TNC: {e}")
+
+    async def run(self) -> None:
+        """
+        Start an infinite async loop to read frames and notify observers.
+
+        This method must be awaited and will run until cancelled.
+        """
+        if not self.initialized or self.kiss_protocol is None:
+            raise AprsError("KISS protocol not initialized. Call connect() first.")
+        try:
+            async for frame in self.kiss_protocol.read():
+                self._notify_observers(frame)
+        except asyncio.CancelledError:
+            logging.info("APRS run loop cancelled.")
+        except Exception as e:
+            logging.error(f"Error in APRS run loop: {e}")
+            raise AprsError(f"Error in APRS run loop: {e}")
 
     def register_observer(self, mycall: str, callback: Callable[[Frame], None]) -> None:
         """
@@ -147,6 +169,7 @@ class Aprs:
             frame: The received frame.
         """
         info = frame.info.decode("UTF-8")
+        print(info)
         for mycall, callbacks in self._observers.items():
             if f":{mycall}" in info:
                 for callback in callbacks:
@@ -202,9 +225,9 @@ class Aprs:
         Send an APRS message via the KISS TNC without requesting an acknowledgement.
 
         Args:
-            mycall: My callsign (3-9 uppercase letters/numbers).
+            mycall: My callsign (3-6 uppercase alphanumeric characters, then '-', then 1-2 digits).
             path: The digipeater path as a list of strings.
-            recipient: The recipient callsign (1-9 uppercase letters/numbers).
+            recipient: The recipient callsign (same format as mycall).
             message: The message text to send (1 to 67 characters).
 
         Raises:
@@ -215,32 +238,26 @@ class Aprs:
             logging.error("Cannot send message: KISS protocol not initialized.")
             raise AprsError("KISS protocol not initialized.")
 
-        # Validate mycall
-        if (
-            not isinstance(mycall, str)
-            or not (3 <= len(mycall) <= 9)
-            or not mycall.isalnum()
-            or not mycall.isupper()
-        ):
-            logging.error("mycall must be 3-9 uppercase alphanumeric characters. Got: %r", mycall)
-            raise ValueError("mycall must be 3-9 uppercase alphanumeric characters.")
+        # Validate mycall and recipient
+        callsign_pattern = re.compile(r"^[A-Z0-9]{3,6}-\d{1,2}$")
+        for callsign, label in [(mycall, "mycall"), (recipient, "recipient")]:
+            if (
+                not isinstance(callsign, str)
+                or not callsign_pattern.fullmatch(callsign)
+                or len(callsign) > 9
+            ):
+                logging.error(
+                    "%s must be 3-6 uppercase alphanumeric characters, a dash, then 1-2 digits (max 9 chars). Got: %r",
+                    label, callsign
+                )
+                raise ValueError(
+                    f"{label} must be 3-6 uppercase alphanumeric characters, a dash, then 1-2 digits (max 9 chars)."
+                )
 
         # Validate path
         if not isinstance(path, list) or not all(isinstance(p, str) and p for p in path):
             logging.error("path must be a list of non-empty strings. Got: %r", path)
             raise ValueError("path must be a list of non-empty strings.")
-
-        # Validate recipient
-        if (
-            not isinstance(recipient, str)
-            or not (1 <= len(recipient) <= 9)
-            or not recipient.isalnum()
-            or not recipient.isupper()
-        ):
-            logging.error(
-                "recipient must be 1-9 uppercase alphanumeric characters. Got: %r", recipient
-            )
-            raise ValueError("recipient must be 1-9 uppercase alphanumeric characters.")
 
         # Validate message
         if not isinstance(message, str) or not (1 <= len(message) <= 67):

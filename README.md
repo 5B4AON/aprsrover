@@ -91,31 +91,31 @@ async def main():
     await aprs.connect()  # Establish connection to KISS TNC (async, must be awaited)
 
     # Register an observer callback for your callsign
-    aprs.register_observer("MYCALL", my_frame_handler)
+    aprs.register_observer("5B4AON-9", my_frame_handler)
 
     # To register multiple callbacks for the same callsign:
-    aprs.register_observer("MYCALL", lambda frame: print("Another handler", frame))
+    aprs.register_observer("5B4AON-9", lambda frame: print("Another handler", frame))
 
     # To unregister a specific callback:
-    aprs.unregister_observer("MYCALL", my_frame_handler)
+    aprs.unregister_observer("5B4AON-9", my_frame_handler)
 
     # To unregister all callbacks for a callsign:
-    aprs.unregister_observer("MYCALL")
+    aprs.unregister_observer("5B4AON-9")
 
     # To clear all observers:
     aprs.clear_observers()
 
     # Send a message (with validation)
     aprs.send_my_message_no_ack(
-        mycall="MYCALL",
+        mycall="5B4AON-7",
         path=["WIDE1-1"],
-        recipient="DEST",
+        recipient="5B4AON-9",
         message="Hello APRS"
     )
 
     # Send an object (with validation)
     aprs.send_my_object_no_course_speed(
-        mycall="MYCALL",
+        mycall="5B4AON-9",
         path=["WIDE1-1"],
         time_dhm="011234z",           # 6 digits + 'z'
         lat_dmm="5132.07N",           # 7 digits + N/S
