@@ -18,12 +18,14 @@ from aprsrover.gps import GPS, GPSError
 gps = GPS()
 try:
     gps.connect()
-    # Get APRS DMM format for APRS transmission
-    lat_dmm, lon_dmm, tm, bearing = gps.get_gps_data_dmm()
-    # Get decimal degrees format for calculations
-    lat_dec, lon_dec, iso_time, bearing = gps.get_gps_data_decimal()
-    print("APRS DMM:", lat_dmm, lon_dmm, tm, bearing)
-    print("Decimal:", lat_dec, lon_dec, iso_time, bearing)
+    # Get APRS DMM format
+    data = gps.get_gps_data_dmm()
+    if data is None:
+        print("No GPS fix yet. Try running: cgps -s")
+    else:
+        lat_dmm, lon_dmm, tm, bearing = data
+        # Get decimal degrees format
+        print("APRS DMM:", lat_dmm, lon_dmm, tm, bearing)
 except GPSError as e:
     print(f"GPS error: {e}")
 ```

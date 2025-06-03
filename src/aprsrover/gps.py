@@ -16,14 +16,21 @@ Features:
 
 Usage example:
 
-    from aprsrover.gps import GPS
+    from aprsrover.gps import GPS, GPSError
 
     gps = GPS()
-    gps.connect()
-    # Get APRS DMM format for APRS transmission
-    lat_dmm, lon_dmm, tm, bearing = gps.get_gps_data_dmm()
-    # Get decimal degrees format for calculations
-    lat_dec, lon_dec, iso_time, bearing = gps.get_gps_data_decimal()
+    try:
+        gps.connect()
+        # Get APRS DMM format
+        data = gps.get_gps_data_dmm()
+        if data is None:
+            print("No GPS fix yet. Try running: cgps -s")
+        else:
+            lat_dmm, lon_dmm, tm, bearing = data
+            # Get decimal degrees format
+            print("APRS DMM:", lat_dmm, lon_dmm, tm, bearing)
+    except GPSError as e:
+        print(f"GPS error: {e}")
 
 See the README.md for more usage examples and parameter details.
 
