@@ -291,7 +291,7 @@ class TestAprs(unittest.TestCase):
 
     def test_send_my_object_no_course_speed_valid(self):
         self.aprs.send_my_object_no_course_speed(
-            mycall="MYCALL",
+            mycall="N0CALL-1",
             path=["WIDE1-1"],
             time_dhm="011234z",
             lat_dmm="5132.07N",
@@ -303,7 +303,7 @@ class TestAprs(unittest.TestCase):
         self.assertTrue(self.aprs.kiss_protocol.write.called)
         args, kwargs = self.aprs.kiss_protocol.write.call_args
         frame = args[0]
-        self.assertIn(b';MYCALL   *011234z5132.07N/00007.40WOTest object', frame.info)
+        self.assertIn(b';N0CALL-1 *011234z5132.07N/00007.40WOTest object', frame.info)
 
     def test_send_my_object_no_course_speed_not_initialized(self):
         self.aprs.initialized = False
@@ -323,7 +323,7 @@ class TestAprs(unittest.TestCase):
         self.aprs.kiss_protocol.write.side_effect = Exception("fail")
         with self.assertRaises(AprsError):
             self.aprs.send_my_object_no_course_speed(
-                mycall="MYCALL",
+                mycall="N0CALL-1",
                 path=["WIDE1-1"],
                 time_dhm="011234z",
                 lat_dmm="5132.07N",
@@ -334,11 +334,72 @@ class TestAprs(unittest.TestCase):
             )
 
     def test_send_my_object_no_course_speed_invalid_mycall(self):
+        # Not uppercase
         with self.assertRaises(ValueError):
             self.aprs.send_my_object_no_course_speed(
-                mycall="mc",  # not uppercase
+                mycall="nocall-1",
                 path=["WIDE1-1"],
-                time_dhm="011234",
+                time_dhm="011234z",
+                lat_dmm="5132.07N",
+                long_dmm="00007.40W",
+                symbol_id="/",
+                symbol_code="O",
+                comment="Test object"
+            )
+        # Too short (less than 3 before dash)
+        with self.assertRaises(ValueError):
+            self.aprs.send_my_object_no_course_speed(
+                mycall="AB-1",
+                path=["WIDE1-1"],
+                time_dhm="011234z",
+                lat_dmm="5132.07N",
+                long_dmm="00007.40W",
+                symbol_id="/",
+                symbol_code="O",
+                comment="Test object"
+            )
+        # Too long (more than 6 before dash)
+        with self.assertRaises(ValueError):
+            self.aprs.send_my_object_no_course_speed(
+                mycall="ABCDEFG-1",
+                path=["WIDE1-1"],
+                time_dhm="011234z",
+                lat_dmm="5132.07N",
+                long_dmm="00007.40W",
+                symbol_id="/",
+                symbol_code="O",
+                comment="Test object"
+            )
+        # No dash
+        with self.assertRaises(ValueError):
+            self.aprs.send_my_object_no_course_speed(
+                mycall="N0CALL1",
+                path=["WIDE1-1"],
+                time_dhm="011234z",
+                lat_dmm="5132.07N",
+                long_dmm="00007.40W",
+                symbol_id="/",
+                symbol_code="O",
+                comment="Test object"
+            )
+        # Letters after dash
+        with self.assertRaises(ValueError):
+            self.aprs.send_my_object_no_course_speed(
+                mycall="N0CALL-AA",
+                path=["WIDE1-1"],
+                time_dhm="011234z",
+                lat_dmm="5132.07N",
+                long_dmm="00007.40W",
+                symbol_id="/",
+                symbol_code="O",
+                comment="Test object"
+            )
+        # Too many digits after dash
+        with self.assertRaises(ValueError):
+            self.aprs.send_my_object_no_course_speed(
+                mycall="N0CALL-123",
+                path=["WIDE1-1"],
+                time_dhm="011234z",
                 lat_dmm="5132.07N",
                 long_dmm="00007.40W",
                 symbol_id="/",

@@ -295,7 +295,7 @@ class Aprs:
         Send an APRS object with a comment, without including course and speed data.
 
         Args:
-            mycall: My callsign (3-9 uppercase letters/numbers).
+            mycall: My callsign (3-6 uppercase alphanumeric characters, then '-', then 1-2 digits, max 9 chars).
             path: The digipeater path as a list of strings.
             time_dhm: The time in DHM format (6 digits followed by 'z', e.g., '011234z').
             lat_dmm: The latitude in DMM format (7 digits + N/S, e.g., '5132.07N').
@@ -312,15 +312,20 @@ class Aprs:
             logging.error("Cannot send object: KISS protocol not initialized.")
             raise AprsError("KISS protocol not initialized.")
 
-        # Validate mycall
+        # Validate mycall (same as other callsigns: 3-6 uppercase alphanumeric, dash, 1-2 digits, max 9 chars)
+        callsign_pattern = re.compile(r"^[A-Z0-9]{3,6}-\d{1,2}$")
         if (
             not isinstance(mycall, str)
-            or not (3 <= len(mycall) <= 9)
-            or not mycall.isalnum()
-            or not mycall.isupper()
+            or not callsign_pattern.fullmatch(mycall)
+            or len(mycall) > 9
         ):
-            logging.error("mycall must be 3-9 uppercase alphanumeric characters. Got: %r", mycall)
-            raise ValueError("mycall must be 3-9 uppercase alphanumeric characters.")
+            logging.error(
+                "mycall must be 3-6 uppercase alphanumeric characters, a dash, then 1-2 digits (max 9 chars). Got: %r",
+                mycall
+            )
+            raise ValueError(
+                "mycall must be 3-6 uppercase alphanumeric characters, a dash, then 1-2 digits (max 9 chars)."
+            )
 
         # Validate path
         if not isinstance(path, list) or not all(isinstance(p, str) and p for p in path):
