@@ -155,6 +155,53 @@ if __name__ == "__main__":
 - For `send_my_object_no_course_speed`, `time_dhm` must be 6 digits followed by 'z' (e.g., '011234z'), and `lat_dmm` must be 7 digits (with optional dot) followed by 'N' or 'S' (e.g., '5132.07N').
 - Requires the `kiss3` and `ax253` libraries for KISS TNC and AX.25 frame handling.
 
+## Switch Features
+
+- Modular, testable interface for managing GPIO-connected switches on a Raspberry Pi
+- Supports both input ("IN") and output ("OUT") switch configurations (set at initialization)
+- Provides methods to check the status of a switch (`get_state`) and to set the state for output switches (`set_state`)
+- Observer pattern: register callback functions to be notified when a switch changes state (works for both input and output switches)
+- Supports both synchronous and asynchronous monitoring of switch state changes
+- Input validation for pin numbers, direction, and observer registration
+- Abstracts GPIO access for easy testing and mocking (dependency injection via `gpio` parameter)
+- Custom exception: `SwitchError` for granular error handling
+
+## Switch Usage
+
+```python
+from aprsrover.switch import Switch, SwitchError, SwitchEvent
+import time
+
+# Example: Using a GPIO pin as an input switch
+switch_in = Switch(pin=17, direction="IN")
+def on_switch_change(event: SwitchEvent) -> None:
+    print(f"Switch {event.pin} changed to {'ON' if event.state else 'OFF'}")
+switch_in.add_observer(on_switch_change)
+switch_in.start_monitoring()
+time.sleep(5)
+switch_in.stop_monitoring()
+
+# Example: Using a GPIO pin as an output switch
+switch_out = Switch(pin=18, direction="OUT")
+switch_out.set_state(True)   # Turn switch ON
+print("Switch state is ON:", switch_out.get_state())
+switch_out.set_state(False)  # Turn switch OFF
+print("Switch state is OFF:", not switch_out.get_state())
+
+# Observers work for output switches as well
+switch_out.add_observer(lambda event: print(f"Output pin {event.pin} is now {'ON' if event.state else 'OFF'}"))
+switch_out.set_state(True)
+```
+
+**Note:**  
+- The `direction` parameter must be either `"IN"` or `"OUT"` and is fixed at initialization.
+- For `"OUT"` switches, `set_state()` changes the output and notifies observers if the state changes.
+- For `"IN"` switches, `get_state()` returns the current input state (True for ON, False for OFF).
+- Observers can be registered for both input and output switches and will be notified on state changes.
+- All GPIO access is abstracted for easy mocking in tests; pass a custom `gpio` object for testing.
+- All methods are thread-safe and suitable for use in asynchronous or multi-threaded applications.
+- Requires `RPi.GPIO` on Raspberry Pi hardware; does not attempt to import GPIO on other platforms.
+
 ## Examples
 
 See the `examples/` directory for real-world usage scenarios, including:
@@ -166,6 +213,7 @@ See the `examples/` directory for real-world usage scenarios, including:
 - `gps.py`: Main GPS utility module
 - `tracks.py`: Utility module for controlling rover track motion via PWM
 - `aprs.py`: APRS utility module for frame transmission/reception
+- `switch.py`: GPIO switch utility module
 - `examples/`: Example scripts for integration and real-world usage
 - `tests/`: Unit tests
 
