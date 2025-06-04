@@ -261,5 +261,109 @@ class TestTracks(unittest.TestCase):
             await self.tracks.move_async(0, 50, 0.2, accel=50, accel_interval=0.05)
         asyncio.run(runner())
 
+    def test_turn_spin_in_place_duration(self):
+        # Spin in place left for 1 second at speed 50
+        import time as _time
+        orig_sleep = _time.sleep
+        _time.sleep = lambda x: None
+        self.tracks.turn(50, 0, 'left', duration=1)
+        self.assertEqual(self.tracks.get_left_track_speed(), 0)
+        self.assertEqual(self.tracks.get_right_track_speed(), 0)
+        _time.sleep = orig_sleep
+
+    def test_turn_spin_in_place_angle(self):
+        # Spin in place right for 180 degrees at speed 70
+        import time as _time
+        orig_sleep = _time.sleep
+        _time.sleep = lambda x: None
+        self.tracks.turn(70, 0, 'right', angle_deg=180)
+        self.assertEqual(self.tracks.get_left_track_speed(), 0)
+        self.assertEqual(self.tracks.get_right_track_speed(), 0)
+        _time.sleep = orig_sleep
+
+    def test_turn_arc_duration(self):
+        # Arc left with radius 20cm for 1.5 seconds at speed 60
+        import time as _time
+        orig_sleep = _time.sleep
+        _time.sleep = lambda x: None
+        self.tracks.turn(60, 20, 'left', duration=1.5)
+        self.assertEqual(self.tracks.get_left_track_speed(), 0)
+        self.assertEqual(self.tracks.get_right_track_speed(), 0)
+        _time.sleep = orig_sleep
+
+    def test_turn_arc_angle(self):
+        # Arc right with radius 25cm for 90 degrees at speed 80
+        import time as _time
+        orig_sleep = _time.sleep
+        _time.sleep = lambda x: None
+        self.tracks.turn(80, 25, 'right', angle_deg=90)
+        self.assertEqual(self.tracks.get_left_track_speed(), 0)
+        self.assertEqual(self.tracks.get_right_track_speed(), 0)
+        _time.sleep = orig_sleep
+
+    def test_turn_invalid_direction(self):
+        with self.assertRaises(TracksError):
+            self.tracks.turn(50, 0, 'up', duration=1)
+
+    def test_turn_zero_speed(self):
+        with self.assertRaises(TracksError):
+            self.tracks.turn(0, 10, 'left', duration=1)
+
+    def test_turn_negative_radius(self):
+        with self.assertRaises(TracksError):
+            self.tracks.turn(50, -5, 'right', duration=1)
+
+    def test_turn_both_duration_and_angle(self):
+        with self.assertRaises(TracksError):
+            self.tracks.turn(50, 10, 'left', duration=1, angle_deg=90)
+
+    def test_turn_neither_duration_nor_angle(self):
+        with self.assertRaises(TracksError):
+            self.tracks.turn(50, 10, 'left')
+
+    def test__track_speeds_for_turn_spin_left(self):
+        left, right = self.tracks._track_speeds_for_turn(70, 0, "left")
+        self.assertEqual(left, -70)
+        self.assertEqual(right, 70)
+
+    def test__track_speeds_for_turn_spin_right(self):
+        left, right = self.tracks._track_speeds_for_turn(70, 0, "right")
+        self.assertEqual(left, 70)
+        self.assertEqual(right, -70)
+
+    def test__track_speeds_for_turn_arc_left(self):
+        left, right = self.tracks._track_speeds_for_turn(70, 20, "left")
+        self.assertLess(left, right)
+
+    def test__track_speeds_for_turn_arc_right(self):
+        left, right = self.tracks._track_speeds_for_turn(70, 20, "right")
+        self.assertLess(right, left)
+
+    def test__turn_duration_for_angle_straight(self):
+        duration = self.tracks._turn_duration_for_angle(70, 1000, 180)
+        self.assertGreater(duration, 0)
+
+    def test__turn_duration_for_angle_spin(self):
+        duration = self.tracks._turn_duration_for_angle(70, 0, 360)
+        self.assertGreater(duration, 0)
+
+    def test__turn_duration_for_angle_zero_speed(self):
+        with self.assertRaises(TracksError):
+            self.tracks._turn_duration_for_angle(0, 10, 90)
+
+    def test_turn_async_spin_in_place_angle(self):
+        async def runner():
+            await self.tracks.turn_async(70, 0, 'left', angle_deg=90)
+            self.assertEqual(self.tracks.get_left_track_speed(), 0)
+            self.assertEqual(self.tracks.get_right_track_speed(), 0)
+        asyncio.run(runner())
+
+    def test_turn_async_arc_duration(self):
+        async def runner():
+            await self.tracks.turn_async(60, 15, 'right', duration=1.0)
+            self.assertEqual(self.tracks.get_left_track_speed(), 0)
+            self.assertEqual(self.tracks.get_right_track_speed(), 0)
+        asyncio.run(runner())
+
 if __name__ == "__main__":
     unittest.main()

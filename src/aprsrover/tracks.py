@@ -3,12 +3,6 @@ tracks.py - Rover track control utilities using PWM
 
 This module provides the Tracks class for controlling left and right rover tracks
 using a PWM controller (such as Adafruit PCA9685).
-Using a PWM controller allows the use of servo motors instead of simple DC motors,
-which can provide better control over speed and direction.
-It is designed to be used in robotics applications where precise control of movement
-is required, such as in autonomous rovers or robotic vehicles.
-It allows for independent control of each track, enabling the rover to turn, move forward,
-or reverse with ease.
 
 Features:
 
@@ -18,8 +12,12 @@ Features:
 - Methods to move both tracks simultaneously for a specified duration:
     - Synchronous: `move()` (supports optional acceleration smoothing)
     - Asynchronous: `move_async()` (supports optional acceleration smoothing and interruption)
+- Methods to turn the rover along an arc or in place, specifying speed, turning radius, and direction:
+    - Synchronous: `turn()` (supports optional acceleration smoothing)
+    - Asynchronous: `turn_async()` (supports optional acceleration smoothing and interruption)
+    - Specify either duration (in seconds) or angle (in degrees) for the turn
 - Utility functions to convert speed values to PWM signals
-- Input validation for speed, duration, acceleration, and interval parameters
+- Input validation for speed, duration, acceleration, interval, radius, and direction parameters
 - Designed for use with Adafruit PCA9685 PWM driver or a custom/mock PWM controller for testing
 - All hardware access is abstracted for easy mocking in tests
 - Custom exception: `TracksError` for granular error handling
@@ -38,6 +36,12 @@ Usage example:
 
     # Synchronous movement with acceleration smoothing (ramps to speed over 1s, holds, then stops)
     tracks.move(80, 80, 5, accel=80, accel_interval=0.1)
+
+    # Synchronous turn: spin in place 180 degrees left
+    tracks.turn(70, 0, 'left', angle_deg=180)
+
+    # Synchronous arc turn: arc right for 2.5 seconds
+    tracks.turn(60, 20, 'right', duration=2.5)
 
     # Asynchronous movement with interruption, speed query, and acceleration smoothing:
     async def main():
@@ -58,12 +62,16 @@ Usage example:
             tracks.set_right_track_speed(0)
             print("Tracks stopped.")
 
+    # Asynchronous turn: spin in place 90 degrees left
+    await tracks.turn_async(70, 0, 'left', angle_deg=90)
+
 See the README.md for more usage examples and parameter details.
 
 Dependencies:
     - Adafruit-PCA9685
 
 This module is designed to be imported and used from other Python scripts.
+
 """
 
 import asyncio
@@ -101,6 +109,7 @@ class Tracks:
     LEFT_CHANNEL: int = 8
     RIGHT_CHANNEL: int = 9
     MOVE_DURATION_MAX: int = 10  # Maximum allowed duration in seconds
+    track_width_cm: float = 15.0  # Distance between tracks in cm (adjust as needed)
 
     def __init__(self, pwm: Optional[PWMControllerInterface] = None) -> None:
         """
@@ -455,3 +464,171 @@ class Tracks:
         else:
             self.set_left_track_speed(0)
             self.set_right_track_speed(0)
+
+    def turn(
+        self,
+        speed: Union[int, float, str],
+        radius_cm: float,
+        direction: str,
+        duration: Optional[float] = None,
+        angle_deg: Optional[float] = None,
+        accel: Optional[float] = None,
+        accel_interval: float = 0.05,
+    ) -> None:
+        """
+        Turn the rover along an arc or in place.
+
+        Args:
+            speed: Overall speed (-100 to 100, positive = forward, negative = reverse).
+            radius_cm: Turning radius in cm (0 = spin in place, >0 = arc turn).
+            direction: 'left' or 'right'.
+            duration: Duration of the turn in seconds (optional if angle_deg is given).
+            angle_deg: Angle to turn in degrees (optional if duration is given).
+            accel: Optional acceleration for smoothing.
+            accel_interval: Acceleration interval in seconds.
+
+        Raises:
+            TracksError: On invalid parameters.
+
+        Example:
+            tracks.turn(70, 0, 'left', angle_deg=180)  # Spin in place 180 degrees left
+            tracks.turn(60, 20, 'right', duration=2.5) # Arc right for 2.5 seconds
+        """
+        if direction not in ("left", "right"):
+            raise TracksError("Direction must be 'left' or 'right'.")
+        speed_val = self._sanitize_speed(speed)
+        if speed_val == 0:
+            raise TracksError("Speed must be non-zero for turning.")
+        if radius_cm < 0:
+            raise TracksError("Radius must be >= 0.")
+
+        # Calculate duration if angle_deg is given
+        if angle_deg is not None:
+            if duration is not None:
+                raise TracksError("Specify only one of duration or angle_deg.")
+            duration = self._turn_duration_for_angle(
+                abs(speed_val), radius_cm, abs(angle_deg)
+            )
+        if duration is None:
+            raise TracksError("Must specify either duration or angle_deg.")
+
+        # Compute track speeds
+        left_speed, right_speed = self._track_speeds_for_turn(
+            speed_val, radius_cm, direction
+        )
+        self.move(left_speed, right_speed, duration, accel=accel, accel_interval=accel_interval)
+
+    async def turn_async(
+        self,
+        speed: Union[int, float, str],
+        radius_cm: float,
+        direction: str,
+        duration: Optional[float] = None,
+        angle_deg: Optional[float] = None,
+        accel: Optional[float] = None,
+        accel_interval: float = 0.05,
+    ) -> None:
+        """
+        Asynchronously turn the rover along an arc or in place.
+
+        Args:
+            speed: Overall speed (-100 to 100, positive = forward, negative = reverse).
+            radius_cm: Turning radius in cm (0 = spin in place, >0 = arc turn).
+            direction: 'left' or 'right'.
+            duration: Duration of the turn in seconds (optional if angle_deg is given).
+            angle_deg: Angle to turn in degrees (optional if duration is given).
+            accel: Optional acceleration for smoothing.
+            accel_interval: Acceleration interval in seconds.
+
+        Raises:
+            TracksError: On invalid parameters.
+
+        Example:
+            await tracks.turn_async(70, 0, 'left', angle_deg=90)
+        """
+        if direction not in ("left", "right"):
+            raise TracksError("Direction must be 'left' or 'right'.")
+        speed_val = self._sanitize_speed(speed)
+        if speed_val == 0:
+            raise TracksError("Speed must be non-zero for turning.")
+        if radius_cm < 0:
+            raise TracksError("Radius must be >= 0.")
+
+        # Calculate duration if angle_deg is given
+        if angle_deg is not None:
+            if duration is not None:
+                raise TracksError("Specify only one of duration or angle_deg.")
+            duration = self._turn_duration_for_angle(
+                abs(speed_val), radius_cm, abs(angle_deg)
+            )
+        if duration is None:
+            raise TracksError("Must specify either duration or angle_deg.")
+
+        # Compute track speeds
+        left_speed, right_speed = self._track_speeds_for_turn(
+            speed_val, radius_cm, direction
+        )
+        await self.move_async(left_speed, right_speed, duration, accel=accel, accel_interval=accel_interval)
+
+    def _track_speeds_for_turn(
+        self, speed: int, radius_cm: float, direction: str
+    ) -> tuple[int, int]:
+        """
+        Compute left/right track speeds for a given turn.
+
+        Args:
+            speed: Overall speed (-100 to 100).
+            radius_cm: Turning radius in cm (0 = spin in place).
+            direction: 'left' or 'right'.
+
+        Returns:
+            (left_speed, right_speed): Tuple of speeds for each track.
+        """
+        w = self.track_width_cm
+        if radius_cm == 0:
+            # Spin in place: one track forward, one reverse
+            if direction == "left":
+                return -speed, speed
+            else:
+                return speed, -speed
+        # Arc turn: use differential drive kinematics
+        v = speed
+        r = radius_cm
+        v_l = v * (r - w / 2) / r
+        v_r = v * (r + w / 2) / r
+        if direction == "left":
+            return int(round(v_l)), int(round(v_r))
+        else:
+            return int(round(v_r)), int(round(v_l))
+
+    def _turn_duration_for_angle(
+        self, speed: int, radius_cm: float, angle_deg: float
+    ) -> float:
+        """
+        Calculate duration needed to turn a given angle at a given speed/radius.
+
+        Args:
+            speed: Absolute speed (1-100).
+            radius_cm: Turning radius in cm (0 = spin in place).
+            angle_deg: Angle to turn in degrees.
+
+        Returns:
+            Duration in seconds.
+        """
+        if speed == 0:
+            raise TracksError("Speed must be non-zero for turn duration calculation.")
+        # Calibration: at speed 70, 3.5s -> 30cm straight
+        # So: speed 70 = 30cm/3.5s = 8.571 cm/s
+        base_speed = 70
+        base_cm_per_sec = 30 / 3.5
+        cm_per_sec = abs(speed) * (base_cm_per_sec / base_speed)
+        if radius_cm == 0:
+            # Spin in place: arc length = (track_width_cm * pi) * (angle/360)
+            arc_len = self.track_width_cm * math.pi * (angle_deg / 360)
+            # Each track travels arc_len in opposite directions
+            duration = arc_len / cm_per_sec
+        else:
+            # Arc turn: arc length = 2*pi*r * (angle/360)
+            arc_len = 2 * math.pi * radius_cm * (angle_deg / 360)
+            duration = arc_len / cm_per_sec
+        return duration

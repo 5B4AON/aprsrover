@@ -76,8 +76,13 @@ except GPSError as e:
 - Move both tracks simultaneously for a specified duration:
     - Synchronous: `move()` (supports optional acceleration smoothing)
     - Asynchronous: `move_async()` (supports optional acceleration smoothing and interruption)
+- **Turn the rover along an arc or in place, specifying speed, turning radius, and direction:**
+    - Synchronous: `turn()` (supports optional acceleration smoothing)
+    - Asynchronous: `turn_async()` (supports optional acceleration smoothing and interruption)
+    - Specify either duration (in seconds) or angle (in degrees) for the turn
+    - Automatically computes correct speed for each track based on radius and direction
 - Utility functions to convert speed values to PWM signals
-- Input validation for speed, duration, acceleration, and interval parameters
+- Input validation for speed, duration, acceleration, interval, radius, and direction parameters
 - Designed for use with Adafruit PCA9685 PWM driver or a custom/mock PWM controller for testing
 - All hardware access is abstracted for easy mocking in tests
 - Custom exception: `TracksError` for granular error handling
@@ -110,11 +115,22 @@ try:
     # Query current speeds
     print("Left speed:", tracks.get_left_track_speed())
     print("Right speed:", tracks.get_right_track_speed())
+
+    # --- New: Turn methods ---
+    # Spin in place 180 degrees left at speed 70
+    tracks.turn(70, 0, 'left', angle_deg=180)
+
+    # Arc right with radius 20cm for 2.5 seconds at speed 60
+    tracks.turn(60, 20, 'right', duration=2.5)
+
+    # Arc left with radius 30cm for 90 degrees at speed 50
+    tracks.turn(50, 30, 'left', angle_deg=90)
+
 except TracksError as e:
     print(f"Tracks error: {e}")
 ```
 
-### Asynchronous Movement, Acceleration Smoothing, and Interruption Example
+### Asynchronous Movement, Turning, and Interruption Example
 
 ```python
 import asyncio
@@ -139,16 +155,25 @@ async def main():
         tracks.set_right_track_speed(0)
         print("Tracks stopped.")
 
+    # --- New: Asynchronous turn ---
+    # Spin in place 90 degrees left at speed 70
+    await tracks.turn_async(70, 0, 'left', angle_deg=90)
+
+    # Arc right with radius 25cm for 1.5 seconds at speed 60
+    await tracks.turn_async(60, 25, 'right', duration=1.5)
+
 asyncio.run(main())
 ```
 
 **Note:**  
 - Speed values range from -100 (full reverse) to 100 (full forward).
-- Duration for `move()` and `move_async()` must be a positive float ≤ 10 seconds (rounded to 2 decimal places).
+- Duration for `move()`, `move_async()`, `turn()`, and `turn_async()` must be a positive float ≤ 10 seconds (rounded to 2 decimal places).
 - `accel` is in percent per second (e.g., 50 means it takes 2 seconds to go from 0 to 100).
 - `accel_interval` controls the smoothness of ramping (default 0.05s, must be > 0 and ≤ duration).
+- For `turn()` and `turn_async()`, you must specify either `duration` (in seconds) or `angle_deg` (in degrees, e.g., 180 for half-turn).
+- The correct speed for each track is computed automatically based on the specified radius and direction, using differential drive kinematics.
 - All inputs are validated and clamped to safe ranges.
-- `move_async()` can be cancelled (e.g., if an obstacle is detected); tracks will continue at last set speed until you explicitly stop them.
+- `move_async()` and `turn_async()` can be cancelled (e.g., if an obstacle is detected); tracks will continue at last set speed until you explicitly stop them.
 - You can inject a custom or dummy PWM controller for testing by passing it to the `Tracks(pwm=...)` constructor.
 
 ## APRS Features
