@@ -1,7 +1,44 @@
 # APRS Rover Library
 
-This package provides utilities for controlling an ROV using APRS.  
-It is designed to be imported and used from other Python scripts.  
+A modular, testable Python library for controlling a rover using APRS, GPS, GPIO switches, and PWM tracks.  
+Designed for easy integration, asynchronous operation, and high testability with abstracted hardware access.
+
+---
+
+## Table of Contents
+
+- [Features Overview](#features-overview)
+- [Project Structure](#project-structure)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [GPS Features](#gps-features)
+  - [GPS Usage](#gps-usage)
+- [Tracks Features](#tracks-features)
+  - [Tracks Usage](#tracks-usage)
+- [APRS Features](#aprs-features)
+  - [APRS Usage](#aprs-usage)
+    - [Receiving Frames: Registering Observers and Listening for Messages](#receiving-frames-registering-observers-and-listening-for-messages)
+    - [Sending APRS Messages and Object Reports](#sending-aprs-messages-and-object-reports)
+- [Switch Features](#switch-features)
+  - [Switch Usage](#switch-usage)
+- [Examples](#examples)
+- [Testing](#testing)
+- [Building the package](#building-the-package)
+- [Coding Guidelines](#coding-guidelines)
+- [License](#license)
+
+---
+
+## Features Overview
+
+- **GPS**: Connect to GPSD, retrieve and format GPS data, with robust error handling.
+- **Tracks**: Control rover tracks via PWM, with speed/direction APIs and input validation.
+- **APRS**: Interface with KISS TNC, send/receive APRS frames, observer pattern for async frame handling.
+- **Switch**: Manage GPIO-connected switches (input/output), observer pattern for state changes, async/sync monitoring.
+- **Testing**: All hardware access is abstracted for easy mocking; high test coverage and CI-friendly.
+- **Documentation**: Comprehensive usage examples and API documentation.
+
+---
 
 ## GPS Features
 - Connect to GPSD
