@@ -10,7 +10,10 @@ readme = "README.md"
 authors = [
     { name = "5B4AON" }
 ]
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = [
+    "LICENSE",
+]
 requires-python = ">=3.10"
 dependencies = [
     "gpsd-py3",
@@ -20,7 +23,6 @@ dependencies = [
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",

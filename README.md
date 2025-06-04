@@ -70,11 +70,16 @@ except GPSError as e:
 ## Tracks Features
 
 - Control left and right rover tracks using a PWM controller
-- Set speed and direction for each track independently
-- Move both tracks simultaneously for a specified duration
+- Set speed and direction for each track independently:
+    - `set_left_track_speed()`, `set_right_track_speed()`
+    - Query current speed with `get_left_track_speed()`, `get_right_track_speed()`
+- Move both tracks simultaneously for a specified duration:
+    - Synchronous: `move()` (supports optional acceleration smoothing)
+    - Asynchronous: `move_async()` (supports optional acceleration smoothing and interruption)
 - Utility functions to convert speed values to PWM signals
-- Input validation for speed and duration
-- Designed for use with Adafruit PCA9685 PWM driver
+- Input validation for speed, duration, acceleration, and interval parameters
+- Designed for use with Adafruit PCA9685 PWM driver or a custom/mock PWM controller for testing
+- All hardware access is abstracted for easy mocking in tests
 - Custom exception: `TracksError` for granular error handling
 
 ## Tracks Usage
@@ -87,25 +92,64 @@ tracks = Tracks()  # Uses default Adafruit_PCA9685.PCA9685()
 
 try:
     # Move left track forward at 50% speed for 1 second
-    tracks.left_track(50)
+    tracks.set_left_track_speed(50)
     time.sleep(1)
-    tracks.left_track(0)
+    tracks.set_left_track_speed(0)
 
     # Move right track reverse at 30% speed for 1 second
-    tracks.right_track(-30)
+    tracks.set_right_track_speed(-30)
     time.sleep(1)
-    tracks.right_track(0)
+    tracks.set_right_track_speed(0)
 
     # Move both tracks: left at 60% forward, right at 60% reverse, for 2.5 seconds
     tracks.move(60, -60, 2.5)
+
+    # Move both tracks with acceleration smoothing (ramps to speed over 1s, holds, then stops)
+    tracks.move(80, 80, 5, accel=80, accel_interval=0.1)
+
+    # Query current speeds
+    print("Left speed:", tracks.get_left_track_speed())
+    print("Right speed:", tracks.get_right_track_speed())
 except TracksError as e:
     print(f"Tracks error: {e}")
 ```
 
+### Asynchronous Movement, Acceleration Smoothing, and Interruption Example
+
+```python
+import asyncio
+from aprsrover.tracks import Tracks
+
+async def main():
+    tracks = Tracks()
+    # Start moving both tracks asynchronously for 10 seconds, ramping to 80% speed over 2 seconds
+    move_task = asyncio.create_task(tracks.move_async(80, 80, 10, accel=40))
+    await asyncio.sleep(2)  # Simulate obstacle detection after 2 seconds
+    move_task.cancel()      # Interrupt movement (tracks will keep running at last speed)
+    try:
+        await move_task
+    except asyncio.CancelledError:
+        print("Move interrupted!")
+        # Query current speeds
+        left = tracks.get_left_track_speed()
+        right = tracks.get_right_track_speed()
+        print(f"Current speeds: left={left}, right={right}")
+        # Stop the rover
+        tracks.set_left_track_speed(0)
+        tracks.set_right_track_speed(0)
+        print("Tracks stopped.")
+
+asyncio.run(main())
+```
+
 **Note:**  
 - Speed values range from -100 (full reverse) to 100 (full forward).
-- Duration for `move()` must be a positive float ≤ 10 seconds (rounded to 2 decimal places).
+- Duration for `move()` and `move_async()` must be a positive float ≤ 10 seconds (rounded to 2 decimal places).
+- `accel` is in percent per second (e.g., 50 means it takes 2 seconds to go from 0 to 100).
+- `accel_interval` controls the smoothness of ramping (default 0.05s, must be > 0 and ≤ duration).
 - All inputs are validated and clamped to safe ranges.
+- `move_async()` can be cancelled (e.g., if an obstacle is detected); tracks will continue at last set speed until you explicitly stop them.
+- You can inject a custom or dummy PWM controller for testing by passing it to the `Tracks(pwm=...)` constructor.
 
 ## APRS Features
 
