@@ -16,6 +16,7 @@ Features:
     - Synchronous: `turn()` (supports optional acceleration smoothing)
     - Asynchronous: `turn_async()` (supports optional acceleration smoothing and interruption)
     - Specify either duration (in seconds) or angle (in degrees) for the turn
+    - Automatically computes correct speed for each track based on radius and direction
 - Utility functions to convert speed values to PWM signals
 - Input validation for speed, duration, acceleration, interval, radius, and direction parameters
 - Designed for use with Adafruit PCA9685 PWM driver or a custom/mock PWM controller for testing
@@ -43,6 +44,9 @@ Usage example:
     # Synchronous arc turn: arc right for 2.5 seconds
     tracks.turn(60, 20, 'right', duration=2.5)
 
+    # Synchronous arc turn with acceleration smoothing
+    tracks.turn(50, 30, 'left', angle_deg=90, accel=40, accel_interval=0.1)
+
     # Asynchronous movement with interruption, speed query, and acceleration smoothing:
     async def main():
         tracks = Tracks()
@@ -62,8 +66,11 @@ Usage example:
             tracks.set_right_track_speed(0)
             print("Tracks stopped.")
 
-    # Asynchronous turn: spin in place 90 degrees left
-    await tracks.turn_async(70, 0, 'left', angle_deg=90)
+        # Asynchronous turn: spin in place 90 degrees left
+        await tracks.turn_async(70, 0, 'left', angle_deg=90)
+
+        # Asynchronous arc turn with acceleration smoothing
+        await tracks.turn_async(40, 30, 'left', angle_deg=45, accel=30, accel_interval=0.05)
 
 See the README.md for more usage examples and parameter details.
 
@@ -91,6 +98,9 @@ class TracksError(Exception):
 class PWMControllerInterface(Protocol):
     """
     Protocol for PWM controller to allow dependency injection and testing.
+
+    Methods:
+        set_pwm(channel: int, on: int, off: int): Set PWM value for a channel.
     """
     def set_pwm(self, channel: int, on: int, off: int) -> None:
         ...
@@ -99,6 +109,11 @@ class PWMControllerInterface(Protocol):
 class Tracks:
     """
     Controls the left and right tracks of a rover using a PWM controller.
+
+    Provides synchronous and asynchronous methods to set track speeds, move for a duration,
+    and perform turns (in place or along an arc) with optional acceleration smoothing.
+
+    All hardware access is abstracted for easy mocking in tests.
     """
 
     PWM_FW_MIN: int = 307
@@ -157,7 +172,7 @@ class Tracks:
             speed: The speed value to sanitize.
 
         Returns:
-            int: Sanitized speed value.
+            int: Sanitized speed value in range [-100, 100].
         """
         try:
             x = int(float(speed))
@@ -229,6 +244,9 @@ class Tracks:
 
         Args:
             left_track_speed: Speed value (-100 to 100). Negative for reverse, positive for forward, 0 for stop.
+
+        Raises:
+            TracksError: If setting the PWM value fails.
         """
         x = self._sanitize_speed(left_track_speed)
         self._left_track_speed = x  # Track the last commanded speed
@@ -247,6 +265,9 @@ class Tracks:
 
         Args:
             right_track_speed: Speed value (-100 to 100). Negative for reverse, positive for forward, 0 for stop.
+
+        Raises:
+            TracksError: If setting the PWM value fails.
         """
         x = self._sanitize_speed(right_track_speed)
         self._right_track_speed = x  # Track the last commanded speed
@@ -291,6 +312,10 @@ class Tracks:
         """
         Move both tracks at specified speeds for a given duration, with optional acceleration smoothing.
 
+        If `accel` is provided and > 0, the speed ramps smoothly from the current speed to the target speed
+        over the specified duration, using the given acceleration rate and interval. If `accel` is None or <= 0,
+        the speed jumps instantly to the target value.
+
         Args:
             left_track_speed: Speed for the left track (-100 to 100).
             right_track_speed: Speed for the right track (-100 to 100).
@@ -324,6 +349,7 @@ class Tracks:
         if accel_interval_val <= 0 or accel_interval_val > dur:
             raise TracksError("Acceleration interval (accel_interval) must be > 0 and <= duration.")
 
+        # Use current speeds as starting point for ramping
         left_start = self.get_left_track_speed()
         right_start = self.get_right_track_speed()
 
@@ -334,15 +360,17 @@ class Tracks:
                 self.set_right_track_speed(right_target)
                 time.sleep(dur)
             else:
-                # Smooth acceleration
+                # Smooth acceleration from current speed to target speed
                 import math
+                left_delta = left_target - left_start
+                right_delta = right_target - right_start
                 steps_left = (
-                    math.ceil(abs(left_target - left_start) / (accel_val * accel_interval_val))
-                    if accel_val > 0 else 1
+                    math.ceil(abs(left_delta) / (accel_val * accel_interval_val))
+                    if accel_val > 0 and left_delta != 0 else 1
                 )
                 steps_right = (
-                    math.ceil(abs(right_target - right_start) / (accel_val * accel_interval_val))
-                    if accel_val > 0 else 1
+                    math.ceil(abs(right_delta) / (accel_val * accel_interval_val))
+                    if accel_val > 0 and right_delta != 0 else 1
                 )
                 steps = max(1, int(max(steps_left, steps_right)))
                 total_steps = max(1, int(dur / accel_interval_val))
@@ -379,6 +407,10 @@ class Tracks:
         """
         Asynchronously move both tracks at specified speeds for a given duration,
         with optional acceleration smoothing.
+
+        If `accel` is provided and > 0, the speed ramps smoothly from the current speed to the target speed
+        over the specified duration, using the given acceleration rate and interval. If `accel` is None or <= 0,
+        the speed jumps instantly to the target value.
 
         This method can be cancelled (e.g., via asyncio.Task.cancel()), but will only stop the tracks
         if the duration completes or an exception occurs. If cancelled, the tracks will continue
@@ -421,6 +453,7 @@ class Tracks:
         if accel_interval_val <= 0 or accel_interval_val > dur:
             raise TracksError("Acceleration interval (accel_interval) must be > 0 and <= duration.")
 
+        # Use current speeds as starting point for ramping
         left_start = self.get_left_track_speed()
         right_start = self.get_right_track_speed()
 
@@ -431,15 +464,17 @@ class Tracks:
                 self.set_right_track_speed(right_target)
                 await asyncio.sleep(dur)
             else:
-                # Smooth acceleration
+                # Smooth acceleration from current speed to target speed
                 import math
+                left_delta = left_target - left_start
+                right_delta = right_target - right_start
                 steps_left = (
-                    math.ceil(abs(left_target - left_start) / (accel_val * accel_interval_val))
-                    if accel_val > 0 else 1
+                    math.ceil(abs(left_delta) / (accel_val * accel_interval_val))
+                    if accel_val > 0 and left_delta != 0 else 1
                 )
                 steps_right = (
-                    math.ceil(abs(right_target - right_start) / (accel_val * accel_interval_val))
-                    if accel_val > 0 else 1
+                    math.ceil(abs(right_delta) / (accel_val * accel_interval_val))
+                    if accel_val > 0 and right_delta != 0 else 1
                 )
                 steps = max(1, int(max(steps_left, steps_right)))
                 total_steps = max(1, int(dur / accel_interval_val))
@@ -476,15 +511,20 @@ class Tracks:
         accel_interval: float = 0.05,
     ) -> None:
         """
-        Turn the rover along an arc or in place.
+        Turn the rover along an arc or in place, specifying speed, turning radius, and direction.
+        Either duration or angle_deg must be provided to define the turn.
+
+        The method computes the correct speed for each track based on the specified radius and direction,
+        using differential drive kinematics. If angle_deg is specified, the duration is calculated using
+        the calibration: at speed 70, 3.5 seconds moves the rover 30 cm forward.
 
         Args:
             speed: Overall speed (-100 to 100, positive = forward, negative = reverse).
-            radius_cm: Turning radius in cm (0 = spin in place, >0 = arc turn).
+            radius_cm: Turning radius in centimeters (0 = spin in place, >0 = arc turn).
             direction: 'left' or 'right'.
-            duration: Duration of the turn in seconds (optional if angle_deg is given).
-            angle_deg: Angle to turn in degrees (optional if duration is given).
-            accel: Optional acceleration for smoothing.
+            duration: Duration of the turn in seconds. Required if angle_deg is not given.
+            angle_deg: Angle to turn in degrees (e.g., 180 for half-turn). Required if duration is not given.
+            accel: Optional acceleration for smoothing (percent per second).
             accel_interval: Acceleration interval in seconds.
 
         Raises:
@@ -529,15 +569,20 @@ class Tracks:
         accel_interval: float = 0.05,
     ) -> None:
         """
-        Asynchronously turn the rover along an arc or in place.
+        Asynchronously turn the rover along an arc or in place, specifying speed, turning radius, and direction.
+        Either duration or angle_deg must be provided to define the turn.
+
+        The method computes the correct speed for each track based on the specified radius and direction,
+        using differential drive kinematics. If angle_deg is specified, the duration is calculated using
+        the calibration: at speed 70, 3.5 seconds moves the rover 30 cm forward.
 
         Args:
             speed: Overall speed (-100 to 100, positive = forward, negative = reverse).
-            radius_cm: Turning radius in cm (0 = spin in place, >0 = arc turn).
+            radius_cm: Turning radius in centimeters (0 = spin in place, >0 = arc turn).
             direction: 'left' or 'right'.
-            duration: Duration of the turn in seconds (optional if angle_deg is given).
-            angle_deg: Angle to turn in degrees (optional if duration is given).
-            accel: Optional acceleration for smoothing.
+            duration: Duration of the turn in seconds. Required if angle_deg is not given.
+            angle_deg: Angle to turn in degrees (e.g., 180 for half-turn). Required if duration is not given.
+            accel: Optional acceleration for smoothing (percent per second).
             accel_interval: Acceleration interval in seconds.
 
         Raises:
@@ -545,6 +590,7 @@ class Tracks:
 
         Example:
             await tracks.turn_async(70, 0, 'left', angle_deg=90)
+            await tracks.turn_async(60, 20, 'right', duration=2.5)
         """
         if direction not in ("left", "right"):
             raise TracksError("Direction must be 'left' or 'right'.")
@@ -575,6 +621,9 @@ class Tracks:
     ) -> tuple[int, int]:
         """
         Compute left/right track speeds for a given turn.
+
+        For spin-in-place (radius_cm == 0), one track moves forward and the other in reverse.
+        For arc turns, uses differential drive kinematics to compute the correct speeds.
 
         Args:
             speed: Overall speed (-100 to 100).
@@ -607,6 +656,8 @@ class Tracks:
         """
         Calculate duration needed to turn a given angle at a given speed/radius.
 
+        Uses calibration: at speed 70, 3.5 seconds moves the rover 30 cm forward.
+
         Args:
             speed: Absolute speed (1-100).
             radius_cm: Turning radius in cm (0 = spin in place).
@@ -614,6 +665,9 @@ class Tracks:
 
         Returns:
             Duration in seconds.
+
+        Raises:
+            TracksError: If speed is zero.
         """
         if speed == 0:
             raise TracksError("Speed must be non-zero for turn duration calculation.")

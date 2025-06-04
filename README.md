@@ -81,6 +81,7 @@ except GPSError as e:
     - Asynchronous: `turn_async()` (supports optional acceleration smoothing and interruption)
     - Specify either duration (in seconds) or angle (in degrees) for the turn
     - Automatically computes correct speed for each track based on radius and direction
+    - Supports acceleration smoothing for turns as well
 - Utility functions to convert speed values to PWM signals
 - Input validation for speed, duration, acceleration, interval, radius, and direction parameters
 - Designed for use with Adafruit PCA9685 PWM driver or a custom/mock PWM controller for testing
@@ -123,8 +124,8 @@ try:
     # Arc right with radius 20cm for 2.5 seconds at speed 60
     tracks.turn(60, 20, 'right', duration=2.5)
 
-    # Arc left with radius 30cm for 90 degrees at speed 50
-    tracks.turn(50, 30, 'left', angle_deg=90)
+    # Arc left with radius 30cm for 90 degrees at speed 50, with acceleration smoothing
+    tracks.turn(50, 30, 'left', angle_deg=90, accel=40, accel_interval=0.1)
 
 except TracksError as e:
     print(f"Tracks error: {e}")
@@ -161,6 +162,9 @@ async def main():
 
     # Arc right with radius 25cm for 1.5 seconds at speed 60
     await tracks.turn_async(60, 25, 'right', duration=1.5)
+
+    # Arc left with radius 30cm for 45 degrees at speed 40, with acceleration smoothing
+    await tracks.turn_async(40, 30, 'left', angle_deg=45, accel=30, accel_interval=0.05)
 
 asyncio.run(main())
 ```
