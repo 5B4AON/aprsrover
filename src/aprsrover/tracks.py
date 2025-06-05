@@ -10,11 +10,11 @@ Features:
     - `set_left_track_speed()`, `set_right_track_speed()`
     - Query current speed with `get_left_track_speed()`, `get_right_track_speed()`
 - Methods to move both tracks simultaneously for a specified duration:
-    - Synchronous: `move()` (supports optional acceleration smoothing)
-    - Asynchronous: `move_async()` (supports optional acceleration smoothing and interruption)
+    - Synchronous: `move()` (supports optional acceleration smoothing and optional stop at end)
+    - Asynchronous: `move_async()` (supports optional acceleration smoothing, interruption, and optional stop at end)
 - Methods to turn the rover along an arc or in place, specifying speed, turning radius, and direction:
-    - Synchronous: `turn()` (supports optional acceleration smoothing)
-    - Asynchronous: `turn_async()` (supports optional acceleration smoothing and interruption)
+    - Synchronous: `turn()` (supports optional acceleration smoothing and optional stop at end)
+    - Asynchronous: `turn_async()` (supports optional acceleration smoothing, interruption, and optional stop at end)
     - Specify either duration (in seconds) or angle (in degrees) for the turn
     - Automatically computes correct speed for each track based on radius and direction
 - Utility functions to convert speed values to PWM signals
@@ -33,10 +33,13 @@ Usage example:
     tracks.set_left_track_speed(0)       # Stop left track
     tracks.set_right_track_speed(-30)    # Start moving right track reverse at 30% speed
     tracks.set_right_track_speed(0)      # Stop right track
-    tracks.move(60, -60, 2.5)            # Move both tracks for 2.5 seconds
+    tracks.move(60, -60, 2.5)            # Move both tracks for 2.5 seconds (stops at end by default)
 
     # Synchronous movement with acceleration smoothing (ramps to speed over 1s, holds, then stops)
     tracks.move(80, 80, 5, accel=80, accel_interval=0.1)
+
+    # Synchronous movement, but do not stop at end (leave tracks running)
+    tracks.move(80, 80, 5, stop_at_end=False)
 
     # Synchronous turn: spin in place 180 degrees left
     tracks.turn(70, 0, 'left', angle_deg=180)
@@ -44,8 +47,8 @@ Usage example:
     # Synchronous arc turn: arc right for 2.5 seconds
     tracks.turn(60, 20, 'right', duration=2.5)
 
-    # Synchronous arc turn with acceleration smoothing
-    tracks.turn(50, 30, 'left', angle_deg=90, accel=40, accel_interval=0.1)
+    # Synchronous arc turn with acceleration smoothing and do not stop at end
+    tracks.turn(50, 30, 'left', angle_deg=90, accel=40, accel_interval=0.1, stop_at_end=False)
 
     # Asynchronous movement with interruption, speed query, and acceleration smoothing:
     async def main():
@@ -62,15 +65,14 @@ Usage example:
             right = tracks.get_right_track_speed()
             print(f"Current speeds: left={left}, right={right}")
             # Stop the rover
-            tracks.set_left_track_speed(0)
-            tracks.set_right_track_speed(0)
+            tracks.stop()
             print("Tracks stopped.")
 
         # Asynchronous turn: spin in place 90 degrees left
         await tracks.turn_async(70, 0, 'left', angle_deg=90)
 
-        # Asynchronous arc turn with acceleration smoothing
-        await tracks.turn_async(40, 30, 'left', angle_deg=45, accel=30, accel_interval=0.05)
+        # Asynchronous arc turn with acceleration smoothing, do not stop at end
+        await tracks.turn_async(40, 30, 'left', angle_deg=45, accel=30, accel_interval=0.05, stop_at_end=False)
 
 See the README.md for more usage examples and parameter details.
 
@@ -308,6 +310,7 @@ class Tracks:
         duration: float,
         accel: Optional[float] = None,
         accel_interval: float = 0.05,
+        stop_at_end: bool = True,
     ) -> None:
         """
         Move both tracks at specified speeds for a given duration, with optional acceleration smoothing.
@@ -323,9 +326,14 @@ class Tracks:
             accel: Optional acceleration in percent per second (e.g., 100 for full speed in 1s).
                    If None or <= 0, jumps instantly to target speed.
             accel_interval: Time step for acceleration smoothing in seconds.
+            stop_at_end: If True (default), stop both tracks at the end. If False, leave tracks running.
 
         Raises:
             TracksError: If duration or acceleration parameters are invalid.
+
+        Examples:
+            tracks.move(80, 80, 5, accel=80, accel_interval=0.1)
+            tracks.move(80, 80, 5, stop_at_end=False)
         """
         left_target = self._sanitize_speed(left_track_speed)
         right_target = self._sanitize_speed(right_track_speed)
@@ -390,11 +398,10 @@ class Tracks:
                     self.set_left_track_speed(left_target)
                     self.set_right_track_speed(right_target)
                     time.sleep(remaining)
-            self.set_left_track_speed(0)
-            self.set_right_track_speed(0)
+            if stop_at_end:
+                self.stop()
         except Exception as e:
-            self.set_left_track_speed(0)
-            self.set_right_track_speed(0)
+            self.stop()
             logging.error("Failed to move tracks: %s", e)
             raise TracksError(f"Failed to move tracks: {e}")
 
@@ -405,6 +412,7 @@ class Tracks:
         duration: float,
         accel: Optional[float] = None,
         accel_interval: float = 0.05,
+        stop_at_end: bool = True,
     ) -> None:
         """
         Asynchronously move both tracks at specified speeds for a given duration,
@@ -425,13 +433,15 @@ class Tracks:
             accel: Optional acceleration in percent per second (e.g., 100 for full speed in 1s).
                    If None, jumps instantly to target speed.
             accel_interval: Time step for acceleration smoothing in seconds.
+            stop_at_end: If True (default), stop both tracks at the end. If False, leave tracks running.
 
         Raises:
             TracksError: If duration or acceleration parameters are invalid.
             asyncio.CancelledError: If the move is interrupted (tracks will NOT be stopped).
 
-        Example:
-            await tracks.move_async(80, 80, 5, accel=40)  # Smoothly ramp to 80 over 2s, hold, then stop
+        Examples:
+            await tracks.move_async(80, 80, 5, accel=40)
+            await tracks.move_async(80, 80, 5, stop_at_end=False)
         """
         left_target = self._sanitize_speed(left_track_speed)
         right_target = self._sanitize_speed(right_track_speed)
@@ -496,13 +506,11 @@ class Tracks:
                     self.set_left_track_speed(left_target)
                     self.set_right_track_speed(right_target)
                     await asyncio.sleep(remaining)
+            if stop_at_end:
+                self.stop()
         except Exception as e:
-            self.set_left_track_speed(0)
-            self.set_right_track_speed(0)
+            self.stop()
             raise TracksError(f"Failed to move tracks: {e}")
-        else:
-            self.set_left_track_speed(0)
-            self.set_right_track_speed(0)
 
     def turn(
         self,
@@ -513,6 +521,7 @@ class Tracks:
         angle_deg: Optional[float] = None,
         accel: Optional[float] = None,
         accel_interval: float = 0.05,
+        stop_at_end: bool = True,
     ) -> None:
         """
         Turn the rover along an arc or in place, specifying speed, turning radius, and direction.
@@ -530,13 +539,15 @@ class Tracks:
             angle_deg: Angle to turn in degrees (e.g., 180 for half-turn). Required if duration is not given.
             accel: Optional acceleration for smoothing (percent per second).
             accel_interval: Acceleration interval in seconds.
+            stop_at_end: If True (default), stop both tracks at the end. If False, leave tracks running.
 
         Raises:
             TracksError: On invalid parameters.
 
-        Example:
+        Examples:
             tracks.turn(70, 0, 'left', angle_deg=180)  # Spin in place 180 degrees left
             tracks.turn(60, 20, 'right', duration=2.5) # Arc right for 2.5 seconds
+            tracks.turn(50, 30, 'left', angle_deg=90, accel=40, accel_interval=0.1, stop_at_end=False)
         """
         if direction not in ("left", "right"):
             raise TracksError("Direction must be 'left' or 'right'.")
@@ -560,7 +571,14 @@ class Tracks:
         left_speed, right_speed = self._track_speeds_for_turn(
             speed_val, radius_cm, direction
         )
-        self.move(left_speed, right_speed, duration, accel=accel, accel_interval=accel_interval)
+        self.move(
+            left_speed,
+            right_speed,
+            duration,
+            accel=accel,
+            accel_interval=accel_interval,
+            stop_at_end=stop_at_end,
+        )
 
     async def turn_async(
         self,
@@ -571,6 +589,7 @@ class Tracks:
         angle_deg: Optional[float] = None,
         accel: Optional[float] = None,
         accel_interval: float = 0.05,
+        stop_at_end: bool = True,
     ) -> None:
         """
         Asynchronously turn the rover along an arc or in place, specifying speed, turning radius, and direction.
@@ -588,13 +607,15 @@ class Tracks:
             angle_deg: Angle to turn in degrees (e.g., 180 for half-turn). Required if duration is not given.
             accel: Optional acceleration for smoothing (percent per second).
             accel_interval: Acceleration interval in seconds.
+            stop_at_end: If True (default), stop both tracks at the end. If False, leave tracks running.
 
         Raises:
             TracksError: On invalid parameters.
 
-        Example:
+        Examples:
             await tracks.turn_async(70, 0, 'left', angle_deg=90)
             await tracks.turn_async(60, 20, 'right', duration=2.5)
+            await tracks.turn_async(40, 30, 'left', angle_deg=45, accel=30, accel_interval=0.05, stop_at_end=False)
         """
         if direction not in ("left", "right"):
             raise TracksError("Direction must be 'left' or 'right'.")
@@ -618,7 +639,24 @@ class Tracks:
         left_speed, right_speed = self._track_speeds_for_turn(
             speed_val, radius_cm, direction
         )
-        await self.move_async(left_speed, right_speed, duration, accel=accel, accel_interval=accel_interval)
+        await self.move_async(
+            left_speed,
+            right_speed,
+            duration,
+            accel=accel,
+            accel_interval=accel_interval,
+            stop_at_end=stop_at_end,
+        )
+
+    def stop(self) -> None:
+        """
+        Immediately stop both tracks by setting their speeds to zero.
+
+        Example:
+            tracks.stop()
+        """
+        self.set_left_track_speed(0)
+        self.set_right_track_speed(0)
 
     def _track_speeds_for_turn(
         self, speed: int, radius_cm: float, direction: str
@@ -636,6 +674,10 @@ class Tracks:
 
         Returns:
             (left_speed, right_speed): Tuple of speeds for each track.
+
+        Example:
+            tracks._track_speeds_for_turn(70, 0, "left")   # (-70, 70)
+            tracks._track_speeds_for_turn(70, 20, "right") # (84, 56)
         """
         w = self.track_width_cm
         if radius_cm == 0:
@@ -672,6 +714,10 @@ class Tracks:
 
         Raises:
             TracksError: If speed is zero.
+
+        Example:
+            tracks._turn_duration_for_angle(70, 0, 180)   # Duration for 180 deg spin in place
+            tracks._turn_duration_for_angle(70, 20, 90)   # Duration for 90 deg arc turn
         """
         if speed == 0:
             raise TracksError("Speed must be non-zero for turn duration calculation.")

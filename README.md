@@ -74,14 +74,15 @@ except GPSError as e:
     - `set_left_track_speed()`, `set_right_track_speed()`
     - Query current speed with `get_left_track_speed()`, `get_right_track_speed()`
 - Move both tracks simultaneously for a specified duration:
-    - Synchronous: `move()` (supports optional acceleration smoothing)
-    - Asynchronous: `move_async()` (supports optional acceleration smoothing and interruption)
+    - Synchronous: `move()` (supports optional acceleration smoothing and **optional stop at end**)
+    - Asynchronous: `move_async()` (supports optional acceleration smoothing, interruption, and **optional stop at end**)
 - **Turn the rover along an arc or in place, specifying speed, turning radius, and direction:**
-    - Synchronous: `turn()` (supports optional acceleration smoothing)
-    - Asynchronous: `turn_async()` (supports optional acceleration smoothing and interruption)
+    - Synchronous: `turn()` (supports optional acceleration smoothing and **optional stop at end**)
+    - Asynchronous: `turn_async()` (supports optional acceleration smoothing, interruption, and **optional stop at end**)
     - Specify either duration (in seconds) or angle (in degrees) for the turn
     - Automatically computes correct speed for each track based on radius and direction
     - Supports acceleration smoothing for turns as well
+    - **All movement and turn methods accept a `stop_at_end` parameter (default `True`). If set to `False`, tracks will continue running at the last set speed after the operation completes.**
 - Utility functions to convert speed values to PWM signals
 - Input validation for speed, duration, acceleration, interval, radius, and direction parameters
 - Designed for use with Adafruit PCA9685 PWM driver or a custom/mock PWM controller for testing
@@ -107,25 +108,31 @@ try:
     time.sleep(1)
     tracks.set_right_track_speed(0)
 
-    # Move both tracks: left at 60% forward, right at 60% reverse, for 2.5 seconds
+    # Move both tracks: left at 60% forward, right at 60% reverse, for 2.5 seconds (stops at end)
     tracks.move(60, -60, 2.5)
 
     # Move both tracks with acceleration smoothing (ramps to speed over 1s, holds, then stops)
     tracks.move(80, 80, 5, accel=80, accel_interval=0.1)
 
+    # Move both tracks, but do NOT stop at end (leave tracks running at last speed)
+    tracks.move(80, 80, 5, stop_at_end=False)
+
     # Query current speeds
     print("Left speed:", tracks.get_left_track_speed())
     print("Right speed:", tracks.get_right_track_speed())
 
-    # --- New: Turn methods ---
-    # Spin in place 180 degrees left at speed 70
+    # --- Turn methods ---
+    # Spin in place 180 degrees left at speed 70 (stops at end)
     tracks.turn(70, 0, 'left', angle_deg=180)
 
-    # Arc right with radius 20cm for 2.5 seconds at speed 60
+    # Arc right with radius 20cm for 2.5 seconds at speed 60 (stops at end)
     tracks.turn(60, 20, 'right', duration=2.5)
 
-    # Arc left with radius 30cm for 90 degrees at speed 50, with acceleration smoothing
-    tracks.turn(50, 30, 'left', angle_deg=90, accel=40, accel_interval=0.1)
+    # Arc left with radius 30cm for 90 degrees at speed 50, with acceleration smoothing, do NOT stop at end
+    tracks.turn(50, 30, 'left', angle_deg=90, accel=40, accel_interval=0.1, stop_at_end=False)
+
+    # Explicitly stop both tracks at any time
+    tracks.stop()
 
 except TracksError as e:
     print(f"Tracks error: {e}")
@@ -152,24 +159,27 @@ async def main():
         right = tracks.get_right_track_speed()
         print(f"Current speeds: left={left}, right={right}")
         # Stop the rover
-        tracks.set_left_track_speed(0)
-        tracks.set_right_track_speed(0)
+        tracks.stop()
         print("Tracks stopped.")
 
-    # --- New: Asynchronous turn ---
-    # Spin in place 90 degrees left at speed 70
+    # --- Asynchronous turn ---
+    # Spin in place 90 degrees left at speed 70 (stops at end)
     await tracks.turn_async(70, 0, 'left', angle_deg=90)
 
-    # Arc right with radius 25cm for 1.5 seconds at speed 60
+    # Arc right with radius 25cm for 1.5 seconds at speed 60 (stops at end)
     await tracks.turn_async(60, 25, 'right', duration=1.5)
 
-    # Arc left with radius 30cm for 45 degrees at speed 40, with acceleration smoothing
-    await tracks.turn_async(40, 30, 'left', angle_deg=45, accel=30, accel_interval=0.05)
+    # Arc left with radius 30cm for 45 degrees at speed 40, with acceleration smoothing, do NOT stop at end
+    await tracks.turn_async(40, 30, 'left', angle_deg=45, accel=30, accel_interval=0.05, stop_at_end=False)
+
+    # Explicitly stop both tracks at any time
+    tracks.stop()
 
 asyncio.run(main())
 ```
 
 **Note:**  
+- All movement and turn methods (`move`, `move_async`, `turn`, `turn_async`) accept a `stop_at_end` parameter (default `True`). If set to `False`, the tracks will continue running at the last set speed after the operation completes. Use `tracks.stop()` to stop both tracks explicitly.
 - Speed values range from -100 (full reverse) to 100 (full forward).
 - Duration for `move()`, `move_async()`, `turn()`, and `turn_async()` must be a positive float ≤ 10 seconds (rounded to 2 decimal places).
 - `accel` is in percent per second (e.g., 50 means it takes 2 seconds to go from 0 to 100).
@@ -177,7 +187,7 @@ asyncio.run(main())
 - For `turn()` and `turn_async()`, you must specify either `duration` (in seconds) or `angle_deg` (in degrees, e.g., 180 for half-turn).
 - The correct speed for each track is computed automatically based on the specified radius and direction, using differential drive kinematics.
 - All inputs are validated and clamped to safe ranges.
-- `move_async()` and `turn_async()` can be cancelled (e.g., if an obstacle is detected); tracks will continue at last set speed until you explicitly stop them.
+- `move_async()` and `turn_async()` can be cancelled (e.g., if an obstacle is detected); tracks will continue at last speed until you explicitly stop them.
 - You can inject a custom or dummy PWM controller for testing by passing it to the `Tracks(pwm=...)` constructor.
 
 ## APRS Features
