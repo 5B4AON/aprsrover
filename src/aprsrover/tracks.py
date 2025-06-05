@@ -356,11 +356,13 @@ class Tracks:
         try:
             if accel_val is None or accel_val <= 0:
                 # No smoothing, jump to target
+                logging.debug(f"Jumping to target speeds: left={left_target}, right={right_target}, for={dur:03.2f} seconds")
                 self.set_left_track_speed(left_target)
                 self.set_right_track_speed(right_target)
                 time.sleep(dur)
             else:
                 # Smooth acceleration from current speed to target speed
+                logging.debug(f"Smoothly accelerating to target speeds: left={left_target}, right={right_target}, for={dur:03.2f} seconds with accel={accel_val}%")
                 import math
                 left_delta = left_target - left_start
                 right_delta = right_target - right_start
@@ -460,11 +462,13 @@ class Tracks:
         try:
             if accel_val is None or accel_val <= 0:
                 # No smoothing, jump to target
+                logging.debug(f"Jumping to target speeds: left={left_target}, right={right_target}, for={dur:03.2f} seconds")
                 self.set_left_track_speed(left_target)
                 self.set_right_track_speed(right_target)
                 await asyncio.sleep(dur)
             else:
                 # Smooth acceleration from current speed to target speed
+                logging.debug(f"Smoothly accelerating to target speeds: left={left_target}, right={right_target}, for={dur:03.2f} seconds with accel={accel_val}%")
                 import math
                 left_delta = left_target - left_start
                 right_delta = right_target - right_start

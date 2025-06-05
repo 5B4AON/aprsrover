@@ -23,7 +23,7 @@ Usage example:
 
 from typing import Callable, List, Optional, Protocol, Any, Literal
 import threading
-import sys
+import logging
 import platform
 
 # Only import RPi.GPIO if running on a Raspberry Pi
@@ -149,6 +149,7 @@ class Switch:
         if self.direction != "OUT":
             raise SwitchError("Cannot set state on input-configured switch.")
         try:
+            logging.debug(f"Setting pin {self.pin} to {'ON' if state else 'OFF'}")
             self._gpio.output(self.pin, int(not state))
             with self._lock:
                 prev_state = self._output_state
