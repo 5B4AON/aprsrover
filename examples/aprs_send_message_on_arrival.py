@@ -61,8 +61,7 @@ async def main() -> None:
 
     try:
         await aprs.connect()
-        gps.connect()
-    except (AprsError, GPSError) as e:
+    except (AprsError) as e:
         print(f"Initialization error: {e}")
         return
 

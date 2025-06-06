@@ -106,7 +106,7 @@ def pos_callback(frame: Frame):
     # Only send ack if the message matches the search condition
     send_ack_if_requested(frame, CALLSIGN)
     try:
-        gps_data = gps.get_gps_data()
+        gps_data = gps.get_gps_data_dmm()
         if gps_data is None:
             print("Failed to retrieve GPS data for position report.")
             return
@@ -128,7 +128,6 @@ def pos_callback(frame: Frame):
 async def main() -> None:
     try:
         await aprs.connect()
-        gps.connect()
         aprs.register_observer(CALLSIGN, move_callback)
         aprs.register_observer(CALLSIGN, pos_callback)
         print(f"APRS observer registered for {CALLSIGN}. Waiting for messages (Ctrl+C to exit)...")
