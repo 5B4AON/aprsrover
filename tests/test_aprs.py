@@ -1,11 +1,10 @@
 import sys
 import os
 import unittest
-from unittest.mock import MagicMock, patch
 from typing import Any, List
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
-from aprsrover.aprs import Aprs, AprsError
+from aprsrover.aprs import Aprs, AprsError, KISSInterface
 from ax253 import Frame
 
 class DummyKissProtocol:
@@ -22,10 +21,26 @@ class DummyKissProtocol:
         for frame in self.read_frames:
             yield frame
 
+class DummyKISS(KISSInterface):
+    def __init__(self):
+        self.protocol = DummyKissProtocol()
+        self.create_called = False
+
+    async def create_tcp_connection(self, host: str, port: int, kiss_settings: dict) -> tuple[Any, Any]:
+        self.create_called = True
+        return (object(), self.protocol)
+
+    def write(self, frame: Frame) -> None:
+        self.protocol.write(frame)
+
+    def read(self):
+        return self.protocol.read()
+
 class TestAprs(unittest.TestCase):
     def setUp(self) -> None:
-        self.aprs = Aprs(host="localhost", port=8001)
-        self.aprs.kiss_protocol = DummyKissProtocol()
+        self.dummy_kiss = DummyKISS()
+        self.aprs = Aprs(host="localhost", port=8001, kiss=self.dummy_kiss)
+        self.aprs.kiss_protocol = self.dummy_kiss.protocol
         self.aprs.transport = object()
         self.aprs.initialized = True
 
@@ -335,25 +350,24 @@ class TestAprs(unittest.TestCase):
                 comment="Test object"
             )
 
-    @patch("kiss.create_tcp_connection")
-    def test_connect_success(self, mock_create):
-        proto = DummyKissProtocol()
-        mock_create.return_value = (object(), proto)
-        aprs = Aprs(host="localhost", port=8001)
+    def test_connect_success(self):
+        aprs = Aprs(host="localhost", port=8001, kiss=self.dummy_kiss)
         import asyncio
         asyncio.run(aprs.connect())
         self.assertTrue(aprs.initialized)
-        self.assertIs(aprs.kiss_protocol, proto)
+        self.assertIsInstance(aprs.kiss_protocol, DummyKissProtocol)
 
-    @patch("kiss.create_tcp_connection", side_effect=RuntimeError("fail"))
-    def test_connect_failure(self, mock_create):
-        aprs = Aprs(host="localhost", port=8001)
+    def test_connect_failure(self):
+        class FailingKISS(DummyKISS):
+            async def create_tcp_connection(self, host, port, kiss_settings):
+                raise Exception("fail")
+        aprs = Aprs(host="localhost", port=8001, kiss=FailingKISS())
         import asyncio
         with self.assertRaises(AprsError):
             asyncio.run(aprs.connect())
 
     def test_run_not_initialized(self):
-        aprs = Aprs(host="localhost", port=8001)
+        aprs = Aprs(host="localhost", port=8001, kiss=self.dummy_kiss)
         with self.assertRaises(AprsError):
             import asyncio
             asyncio.run(aprs.run())
@@ -362,7 +376,7 @@ class TestAprs(unittest.TestCase):
         proto = DummyKissProtocol()
         frame = Frame(destination="X", source="Y", path=[], info=b":DEST-24:hello")
         proto.read_frames.append(frame)
-        aprs = Aprs(host="localhost", port=8001)
+        aprs = Aprs(host="localhost", port=8001, kiss=self.dummy_kiss)
         aprs.kiss_protocol = proto
         aprs.transport = object()
         aprs.initialized = True

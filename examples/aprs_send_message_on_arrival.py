@@ -61,7 +61,7 @@ async def main() -> None:
 
     try:
         await aprs.connect()
-    except (AprsError) as e:
+    except AprsError as e:
         print(f"Initialization error: {e}")
         return
 
@@ -71,7 +71,7 @@ async def main() -> None:
             gps_data_dec = gps.get_gps_data_decimal()
             if gps_data_dec is None:
                 print("Could not retrieve GPS data. Retrying in 10 seconds...")
-                time.sleep(10)
+                await asyncio.sleep(10)
                 continue
             lat, lon, tm_iso, _ = gps_data_dec
             distance = haversine(lat, lon, DEST_LAT, DEST_LON)
@@ -85,7 +85,7 @@ async def main() -> None:
                     gps_data_dmm = gps.get_gps_data_dmm()
                     if gps_data_dmm is None:
                         print("Could not retrieve DMM GPS data for APRS. Retrying in 10 seconds...")
-                        time.sleep(10)
+                        await asyncio.sleep(10)
                         continue
                     lat_dmm, lon_dmm, tm_dhm, _ = gps_data_dmm
 
@@ -155,10 +155,10 @@ async def main() -> None:
                         print(f"Moved only {moved:.2f}m since last report. No report sent.")
                         last_report_time = now  # Reset timer even if not moved enough
 
-            time.sleep(10)
+            await asyncio.sleep(10)
         except GPSError as e:
             print(f"GPS error: {e}")
-            time.sleep(10)
+            await asyncio.sleep(10)
         except KeyboardInterrupt:
             print("Exiting.")
             break

@@ -30,7 +30,7 @@ aprs = Aprs(host="localhost", port=8001)
 gps = GPS()
 tracks = Tracks()
 
-def send_ack_if_requested(frame: Frame, mycall: str):
+def send_ack_if_requested(frame: Frame, mycall: str) -> None:
     """Send an APRS acknowledgement if requested in the frame info."""
     info = frame.info.decode("utf-8")
     if "{" in info:
@@ -52,7 +52,6 @@ def move_callback(frame: Frame) -> None:
     msg = Aprs.get_my_message(CALLSIGN, frame)
     if not msg or not msg.startswith("Mv "):
         return
-    # Only send ack if the message matches the search condition
     send_ack_if_requested(frame, CALLSIGN)
     try:
         parts = msg[3:].strip().split()
@@ -95,7 +94,7 @@ def move_callback(frame: Frame) -> None:
     except Exception as e:
         print(f"Move callback error: {e}")
 
-def pos_callback(frame: Frame):
+def pos_callback(frame: Frame) -> None:
     """
     Callback for position requests.
     Expects message 'Pos', responds with an APRS object containing current position.
@@ -103,7 +102,6 @@ def pos_callback(frame: Frame):
     msg = Aprs.get_my_message(CALLSIGN, frame)
     if msg != "Pos":
         return
-    # Only send ack if the message matches the search condition
     send_ack_if_requested(frame, CALLSIGN)
     try:
         gps_data = gps.get_gps_data_dmm()
@@ -131,9 +129,8 @@ async def main() -> None:
         aprs.register_observer(CALLSIGN, move_callback)
         aprs.register_observer(CALLSIGN, pos_callback)
         print(f"APRS observer registered for {CALLSIGN}. Waiting for messages (Ctrl+C to exit)...")
-        import time
         while True:
-            time.sleep(1)
+            await asyncio.sleep(1)
     except AprsError as ae:
         print(f"APRS error: {ae}")
 

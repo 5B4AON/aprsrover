@@ -9,6 +9,7 @@ using the AX.25 protocol for APRS (Automatic Packet Reporting System) messaging.
 - Registering and managing observer callbacks for incoming frames, filtered by callsign
 - Utility methods for extracting messages addressed to a specific callsign
 - Acknowledging received APRS messages
+- **Dependency injection:** Allows injection of a custom KISS interface for testing or simulation
 
 Usage example:
 
@@ -27,6 +28,23 @@ Usage example:
 
     asyncio.run(main())
 
+Testing with a DummyKISS interface:
+
+    from aprsrover.aprs import Aprs, KISSInterface
+
+    class DummyKISS(KISSInterface):
+        async def create_tcp_connection(self, host, port, kiss_settings):
+            class DummyProtocol:
+                def write(self, frame): print("Dummy write:", frame)
+                async def read(self):
+                    yield None  # Simulate no frames
+            return (None, DummyProtocol())
+        def write(self, frame): print("Dummy write:", frame)
+        def read(self): yield None
+
+    aprs = Aprs(kiss=DummyKISS())
+    # Now you can call aprs.send_my_message_no_ack(...) etc. for unit testing without hardware.
+
 See the README.md for more usage examples and parameter details.
 
 Dependencies:
@@ -36,19 +54,37 @@ Dependencies:
 This module is designed to be imported and used from other Python scripts.
 """
 
-from typing import Optional, Callable, Awaitable
+from typing import Optional, Callable, Awaitable, Protocol, Any
 from ax253 import Frame
-import kiss
 import logging
 import asyncio
 import re
 
-__all__ = ["Aprs", "AprsError"]
+__all__ = ["Aprs", "AprsError", "KISSInterface"]
 
 
 class AprsError(Exception):
     """Custom exception for APRS-related errors."""
     pass
+
+
+class KISSInterface(Protocol):
+    """
+    Protocol for KISS TNC interface to allow dependency injection and testing.
+
+    Implementations must provide:
+    - async create_tcp_connection(host: str, port: int, kiss_settings: dict) -> (Any, Any)
+    - Frame reading via an async iterator (yielding Frame objects)
+    - write(frame: Frame) -> None
+    """
+    async def create_tcp_connection(self, host: str, port: int, kiss_settings: dict) -> tuple[Any, Any]:
+        ...
+
+    def write(self, frame: Frame) -> None:
+        ...
+
+    def read(self):
+        ...
 
 
 class Aprs:
@@ -58,28 +94,44 @@ class Aprs:
     Note:
         - The `connect()` and `run()` methods are asynchronous and must be awaited.
         - Call `await run()` after connecting to start receiving frames and notifying observers.
+        - You can inject a custom KISS interface for testing or simulation.
     """
 
     KISS_DEFAULT_HOST = "localhost"
     KISS_DEFAULT_PORT = 8001
 
-    def __init__(self, host: Optional[str] = None, port: Optional[int] = None) -> None:
+    def __init__(
+        self,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+        kiss: Optional[KISSInterface] = None,
+    ) -> None:
         """
         Initialize the KISS protocol settings.
 
         Args:
             host: Hostname or IP address of the KISS TNC.
             port: TCP port of the KISS TNC.
+            kiss: Optional KISSInterface instance for dependency injection/testing.
         """
         self.APRS_SW_VERSION = "APDW16"  # DireWolf version
         self.host = host or self.KISS_DEFAULT_HOST
         self.port = port or self.KISS_DEFAULT_PORT
         self.transport = None
         self.kiss_protocol = None
-        self.settings = {kiss.Command.TX_DELAY: 50, kiss.Command.TX_TAIL: 10}
+        self.settings = None
         self.initialized = False
         self._observers: dict[str, list[Callable[[Frame], None]]] = {}
         self._run_task: Optional[asyncio.Task] = None
+
+        if kiss is not None:
+            self.kiss = kiss
+            # Use dummy settings if not present
+            self.settings = getattr(kiss, "settings", {0x01: 50, 0x02: 10})
+        else:
+            import kiss
+            self.kiss = kiss
+            self.settings = {kiss.Command.TX_DELAY: 50, kiss.Command.TX_TAIL: 10}
 
     async def connect(self) -> None:
         """
@@ -89,7 +141,7 @@ class Aprs:
             AprsError: If connection fails.
         """
         try:
-            self.transport, self.kiss_protocol = await kiss.create_tcp_connection(
+            self.transport, self.kiss_protocol = await self.kiss.create_tcp_connection(
                 host=self.host, port=self.port, kiss_settings=self.settings
             )
             self.initialized = True

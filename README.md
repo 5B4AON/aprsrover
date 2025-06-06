@@ -69,7 +69,7 @@ except GPSError as e:
     print(f"GPS error: {e}")
 ```
 
-### Injecting a Dummy GPS Backend for Testing
+### Dummy GPS Example
 
 ```python
 from aprsrover.gps import GPS, GPSDInterface
@@ -88,6 +88,8 @@ gps = GPS(gpsd=DummyGPSD())
 lat_dmm, lon_dmm, tm, bearing = gps.get_gps_data_dmm()
 print("Dummy DMM:", lat_dmm, lon_dmm, tm, bearing)
 ```
+
+---
 
 ## Tracks Features
 
@@ -160,6 +162,25 @@ except TracksError as e:
     print(f"Tracks error: {e}")
 ```
 
+### Dummy Tracks (PWM) Example
+
+```python
+from aprsrover.tracks import Tracks, PWMControllerInterface
+
+class DummyPWM(PWMControllerInterface):
+    def __init__(self):
+        self.calls = []
+        self.freq = None
+    def set_pwm(self, channel: int, on: int, off: int) -> None:
+        self.calls.append((channel, on, off))
+    def set_pwm_freq(self, freq: int) -> None:
+        self.freq = freq
+
+tracks = Tracks(pwm=DummyPWM())
+tracks.set_left_track_speed(50)
+print("Dummy PWM calls:", tracks._pwm.calls)
+```
+
 ### Asynchronous Movement, Turning, and Interruption Example
 
 ```python
@@ -201,7 +222,7 @@ asyncio.run(main())
 ```
 
 **Note:**  
-- All movement and turn methods (`move`, `move_async`, `turn`, `turn_async`) accept a `stop_at_end` parameter (default `True`). If set to `False`, the tracks will continue running at the last set speed after the operation completes. Use `tracks.stop()` to stop both tracks explicitly.
+- All movement and turn methods (`move`, `move_async`, `turn`, `turn_async`) accept a `stop_at_end` parameter (default `True`). If set to `False`, tracks will continue running at the last set speed after the operation completes. Use `tracks.stop()` to stop both tracks explicitly.
 - Speed values range from -100 (full reverse) to 100 (full forward).
 - Duration for `move()`, `move_async()`, `turn()`, and `turn_async()` must be a positive float ≤ 10 seconds (rounded to 2 decimal places).
 - `accel` is in percent per second (e.g., 50 means it takes 2 seconds to go from 0 to 100).
@@ -212,14 +233,20 @@ asyncio.run(main())
 - `move_async()` and `turn_async()` can be cancelled (e.g., if an obstacle is detected); tracks will continue at last speed until you explicitly stop them.
 - You can inject a custom or dummy PWM controller for testing by passing it to the `Tracks(pwm=...)` constructor.
 
+---
+
 ## APRS Features
 
 - Interface with a KISS TNC for APRS frame transmission and reception
-- Observer pattern: register callback functions to handle incoming frames asynchronously
+- **Dependency injection:** Easily test or simulate APRS by passing a dummy/mock object implementing `KISSInterface`
+- Observer pattern: register callback functions to handle incoming frames asynchronously, filtered by callsign
 - Send APRS messages and acknowledgements
 - Send APRS objects (with validation for all parameters)
 - Input validation for observer registration and message/object sending
 - Designed for use with `kiss3` and `ax253` libraries
+- All hardware access is abstracted for easy mocking in tests
+- Custom exception: `AprsError` for granular error handling
+- Fully modular and testable
 
 ## APRS Usage
 
@@ -291,11 +318,35 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
+### Dummy APRS (KISS) Example
+
+```python
+from aprsrover.aprs import Aprs, KISSInterface
+
+class DummyKISS(KISSInterface):
+    async def create_tcp_connection(self, host, port, kiss_settings):
+        class DummyProtocol:
+            def write(self, frame): print("Dummy write:", frame)
+            async def read(self):
+                yield None  # Simulate no frames
+        return (None, DummyProtocol())
+    def write(self, frame): print("Dummy write:", frame)
+    def read(self): yield None
+
+aprs = Aprs(kiss=DummyKISS())
+aprs.initialized = True
+aprs.kiss_protocol = DummyKISS()  # For direct calls in tests
+
+# Now you can call aprs.send_my_message_no_ack(...) etc. for unit testing without hardware.
+```
+
 **Note:**  
 - All APRS message/object sending methods validate their parameters and raise exceptions on invalid input.
 - Both `mycall` and `recipient` must be 3-6 uppercase alphanumeric characters, a dash, then 1-2 digits (e.g., `5B4AON-9`), with a maximum total length of 9.
 - For `send_my_object_no_course_speed`, `time_dhm` must be 6 digits followed by 'z' (e.g., '011234z'), and `lat_dmm` must be 7 digits (with optional dot) followed by 'N' or 'S' (e.g., '5132.07N').
 - Requires the `kiss3` and `ax253` libraries for KISS TNC and AX.25 frame handling.
+
+---
 
 ## Switch Features
 
@@ -335,6 +386,22 @@ switch_out.add_observer(lambda event: print(f"Output pin {event.pin} is now {'ON
 switch_out.set_state(True)
 ```
 
+### Dummy Switch (GPIO) Example
+
+```python
+from aprsrover.switch import Switch, GPIOInterface
+
+class DummyGPIO(GPIOInterface):
+    def __init__(self):
+        self.states = {}
+    def setup(self, pin, direction): self.states[pin] = False
+    def input(self, pin): return self.states.get(pin, False)
+    def output(self, pin, value): self.states[pin] = value
+
+switch = Switch(pin=17, direction="IN", gpio=DummyGPIO())
+print("Dummy switch state:", switch.get_state())
+```
+
 **Note:**  
 - The `direction` parameter must be either `"IN"` or `"OUT"` and is fixed at initialization.
 - For `"OUT"` switches, `set_state()` changes the output and notifies observers if the state changes.
@@ -343,6 +410,8 @@ switch_out.set_state(True)
 - All GPIO access is abstracted for easy mocking in tests; pass a custom `gpio` object for testing.
 - All methods are thread-safe and suitable for use in asynchronous or multi-threaded applications.
 - Requires `RPi.GPIO` on Raspberry Pi hardware; does not attempt to import GPIO on other platforms.
+
+---
 
 ## Examples
 
