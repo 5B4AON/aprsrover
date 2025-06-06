@@ -41,30 +41,52 @@ Designed for easy integration, asynchronous operation, and high testability with
 ---
 
 ## GPS Features
-- Connect to GPSD
-- Retrieve and format GPS data
-- Retrieve GPS data in either APRS DMM format or decimal degrees
+
+- Connect to GPSD or inject a custom GPS backend for testing or simulation
+- Retrieve and format GPS data in either APRS DMM format or decimal degrees
 - Utility functions for coordinate and time formatting
 - Custom exception: `GPSError` for granular error handling
+- **Dependency injection:** Easily test or simulate GPS by passing a dummy/mock object implementing `GPSDInterface`
+- **Fully modular and testable:** All hardware access is abstracted for easy mocking in tests
 
 ## GPS Usage
+
+### Using the Real GPSD Backend
 
 ```python
 from aprsrover.gps import GPS, GPSError
 
-gps = GPS()
+gps = GPS()  # Uses real gpsd if available
 try:
-    gps.connect()
     # Get APRS DMM format
     data = gps.get_gps_data_dmm()
     if data is None:
         print("No GPS fix yet. Try running: cgps -s")
     else:
         lat_dmm, lon_dmm, tm, bearing = data
-        # Get decimal degrees format
         print("APRS DMM:", lat_dmm, lon_dmm, tm, bearing)
 except GPSError as e:
     print(f"GPS error: {e}")
+```
+
+### Injecting a Dummy GPS Backend for Testing
+
+```python
+from aprsrover.gps import GPS, GPSDInterface
+
+class DummyGPSD(GPSDInterface):
+    def get_current(self):
+        class Packet:
+            lat = 51.5
+            lon = -0.1
+            time = "2024-01-01T12:00:00.000Z"
+            mode = 3
+            track = 123.4
+        return Packet()
+
+gps = GPS(gpsd=DummyGPSD())
+lat_dmm, lon_dmm, tm, bearing = gps.get_gps_data_dmm()
+print("Dummy DMM:", lat_dmm, lon_dmm, tm, bearing)
 ```
 
 ## Tracks Features

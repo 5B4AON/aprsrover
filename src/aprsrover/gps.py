@@ -1,51 +1,41 @@
 """
-gps.py - GPSD interface and GPS utility functions
+gps.py
 
-This module provides the GPS class for connecting to GPSD and retrieving GPS data,
-as well as utility functions for coordinate and time formatting for APRS.
+Provides a modular, testable interface for accessing GPS data via gpsd.
+Supports both real gpsd connections and dummy/mock GPS sources for testing.
 
 Features:
-- Connect to GPSD and retrieve current GPS data (latitude, longitude, time, bearing)
-- Retrieve GPS data in either APRS DMM format (for APRS) or decimal degrees (for calculations)
-- `get_gps_data_dmm`: Returns (lat_dmm, lon_dmm, time_ddhhmmz, bearing) for APRS
-- `get_gps_data_decimal`: Returns (lat_decimal, lon_decimal, iso_time, bearing) for calculations
-- Convert decimal degrees to degrees and decimal minutes (DMM) format
-- Convert ISO timestamps to APRS DDHHMMz format
-- Normalize bearing values for APRS
-- Designed for import and use in other Python scripts
+- Modular GPS access via a dependency-injected interface.
+- Allows use of real gpsd or a dummy/mock for testing or non-hardware platforms.
+- Methods to retrieve GPS data in DMM (degrees and decimal minutes) or decimal format.
+- Input validation and robust error handling with custom exceptions.
+- Suitable for use in asynchronous or multi-threaded applications.
 
 Usage example:
+    from aprsrover.gps import GPS, GPSDInterface
 
-    from aprsrover.gps import GPS, GPSError
+    gps = GPS()  # Uses default gpsd client
+    data = gps.get_gps_data_dmm()
 
-    gps = GPS()
-    try:
-        gps.connect()
-        # Get APRS DMM format
-        data = gps.get_gps_data_dmm()
-        if data is None:
-            print("No GPS fix yet. Try running: cgps -s")
-        else:
-            lat_dmm, lon_dmm, tm, bearing = data
-            # Get decimal degrees format
-            print("APRS DMM:", lat_dmm, lon_dmm, tm, bearing)
-    except GPSError as e:
-        print(f"GPS error: {e}")
-
-See the README.md for more usage examples and parameter details.
-
-Dependencies:
-    - gpsd-py3
-
-This module is designed to be imported and used from other Python scripts.
+    # For testing:
+    class DummyGPSD(GPSDInterface):
+        def get_current(self):
+            class Packet:
+                lat = 51.5
+                lon = -0.1
+                time = "2024-01-01T12:00:00.000Z"
+                mode = 3
+                track = 123.4
+            return Packet()
+    gps = GPS(gpsd=DummyGPSD())
+    data = gps.get_gps_data_dmm()
 """
 
-import gpsd
-import time
+from typing import Optional, Protocol, Any, Tuple
 from datetime import datetime
-from typing import Optional, Any, Tuple
+import time
 
-__all__ = ["GPS", "GPSError"]
+__all__ = ["GPS", "GPSError", "GPSDInterface"]
 
 
 class GPSError(Exception):
@@ -53,50 +43,84 @@ class GPSError(Exception):
     pass
 
 
+class GPSDInterface(Protocol):
+    """
+    Protocol for gpsd-like objects to allow dependency injection and testing.
+
+    Implementations must provide a `get_current()` method that returns an object
+    with at least the attributes: lat, lon, time, mode, track.
+    """
+    def get_current(self) -> Any:
+        ...
+
+
 class GPS:
     """
-    A class to interface with a GPS device using gpsd.
+    Provides access to GPS data via gpsd or a compatible injected interface.
 
-    Methods
-    -------
-    connect() -> None
-        Connects to the local gpsd daemon.
-    get_gps_data_dmm(...) -> Optional[tuple[str, str, str, str]]
-        Retrieves GPS data in APRS DMM format (latitude, longitude, datetime, bearing).
-    get_gps_data_decimal(...) -> Optional[tuple[float, float, str, float]]
-        Retrieves GPS data in decimal degrees (latitude, longitude, ISO time, bearing).
+    Args:
+        gpsd (Optional[GPSDInterface]): Optional gpsd-like object for dependency injection/testing.
+
+    Raises:
+        GPSError: If gpsd is not available and no gpsd-like object is injected.
+
+    Example:
+        gps = GPS()
+        lat, lon, time, track = gps.get_gps_data_dmm()
     """
-
-    def connect(self) -> None:
+    def __init__(self, gpsd: Optional[GPSDInterface] = None) -> None:
         """
-        Connect to the local gpsd daemon.
+        Initialize the GPS interface.
 
-        Raises:
-            GPSError: If connection to gpsd fails.
+        Parameters
+        ----------
+        gpsd : Optional[GPSDInterface]
+            An optional gpsd-like object for dependency injection or testing.
+            If not provided, attempts to use the real gpsd library.
+
+        Raises
+        ------
+        GPSError
+            If gpsd is not available and no gpsd-like object is injected.
         """
-        self.gpsd = gpsd
-        try:
-            self.gpsd.connect()
-        except Exception as exc:
-            raise GPSError(f"Failed to connect to gpsd: {exc}") from exc
+        if gpsd is not None:
+            self.gpsd = gpsd
+        else:
+            try:
+                import gpsd
+                gpsd.connect()
+                self.gpsd = gpsd
+            except Exception as exc:
+                raise GPSError(f"Failed to connect to gpsd: {exc}")
 
     def get_gps_data_dmm(
         self, max_attempts: int = 3, sleep_seconds: float = 1.0
     ) -> Optional[Tuple[str, str, str, str]]:
         """
-        Retrieve GPS data in APRS DMM format.
+        Returns GPS data in DMM (degrees and decimal minutes) format.
 
-        Args:
-            max_attempts: Number of attempts to retrieve valid GPS data.
-            sleep_seconds: Seconds to wait between attempts.
+        Parameters
+        ----------
+        max_attempts : int
+            Number of attempts to retrieve valid GPS data.
+        sleep_seconds : float
+            Seconds to wait between attempts.
 
-        Returns:
+        Returns
+        -------
+        Optional[Tuple[str, str, str, str]]
             Tuple of (lat_dmm, lon_dmm, tm_ddhhmmz, bearing) if successful, else None.
 
-        Raises:
-            GPSError: If an exception occurs during GPS data retrieval.
-        """
+        Raises
+        ------
+        GPSError
+            If an exception occurs during GPS data retrieval.
 
+        Example
+        -------
+            gps = GPS()
+            lat, lon, time, track = gps.get_gps_data_dmm()
+        """
         exception_occurred = None
 
         for _ in range(max_attempts):
@@ -127,7 +151,7 @@ class GPS:
         self, max_attempts: int = 3, sleep_seconds: float = 1.0
     ) -> Optional[Tuple[float, float, str, float]]:
         """
-        Retrieve GPS data in decimal degrees.
+        Returns GPS data in decimal degrees format.
 
         Args:
             max_attempts: Number of attempts to retrieve valid GPS data.
@@ -138,6 +162,10 @@ class GPS:
 
         Raises:
             GPSError: If an exception occurs during GPS data retrieval.
+
+        Example:
+            gps = GPS()
+            lat, lon, time, track = gps.get_gps_data_decimal()
         """
 
         exception_occurred = None
