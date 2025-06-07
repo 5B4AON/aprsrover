@@ -189,6 +189,76 @@ class TestAprs(unittest.TestCase):
         frame = proto.written_frames[0]
         self.assertIn(b"Test object", frame.info)
 
+    def test_send_object_report_success_with_name(self):
+        proto = DummyKissProtocol()
+        self.aprs.kiss_protocol = proto
+        self.aprs.initialized = True
+        self.aprs.APRS_SW_VERSION = "APDW16"
+        self.aprs.send_object_report(
+            mycall="CALL-14",
+            path=["WIDE1-1"],
+            time_dhm="011234z",
+            lat_dmm="5132.07N",
+            long_dmm="00007.40W",
+            symbol_id="/",
+            symbol_code=">",
+            comment="Test object",
+            name="OBJNAME"
+        )
+        self.assertTrue(proto.written_frames)
+        frame = proto.written_frames[0]
+        # Object name should be used and padded to 9 chars
+        self.assertIn(b";OBJNAME  *011234z5132.07N/00007.40W>Test object", frame.info)
+
+    def test_send_object_report_success_without_name(self):
+        proto = DummyKissProtocol()
+        self.aprs.kiss_protocol = proto
+        self.aprs.initialized = True
+        self.aprs.APRS_SW_VERSION = "APDW16"
+        self.aprs.send_object_report(
+            mycall="CALL-15",
+            path=["WIDE1-1"],
+            time_dhm="011234z",
+            lat_dmm="5132.07N",
+            long_dmm="00007.40W",
+            symbol_id="/",
+            symbol_code=">",
+            comment="Test object"
+            # name omitted, should use mycall
+        )
+        self.assertTrue(proto.written_frames)
+        frame = proto.written_frames[0]
+        self.assertIn(b";CALL-15  *011234z5132.07N/00007.40W>Test object", frame.info)
+
+    def test_send_object_report_invalid_name(self):
+        self.aprs.initialized = True
+        # Too long
+        with self.assertRaises(ValueError):
+            self.aprs.send_object_report(
+                mycall="CALL-16",
+                path=["WIDE1-1"],
+                time_dhm="011234z",
+                lat_dmm="5132.07N",
+                long_dmm="00007.40W",
+                symbol_id="/",
+                symbol_code=">",
+                comment="Test object",
+                name="TOOLONGNAME"
+            )
+        # Empty string
+        with self.assertRaises(ValueError):
+            self.aprs.send_object_report(
+                mycall="CALL-17",
+                path=["WIDE1-1"],
+                time_dhm="011234z",
+                lat_dmm="5132.07N",
+                long_dmm="00007.40W",
+                symbol_id="/",
+                symbol_code=">",
+                comment="Test object",
+                name=""
+            )
+
     def test_send_object_report_invalid_callsign(self):
         self.aprs.initialized = True
         with self.assertRaises(ValueError):
@@ -395,6 +465,152 @@ class TestAprs(unittest.TestCase):
         frame = Frame(destination="X", source="SRC", path=[], info=info)
         # Should not raise
         self.aprs.send_ack_if_requested(frame, "MYCALL-2", ["WIDE1-1"])
+
+    def test_send_position_report_success_with_time(self):
+        proto = DummyKissProtocol()
+        self.aprs.kiss_protocol = proto
+        self.aprs.initialized = True
+        self.aprs.APRS_SW_VERSION = "APDW16"
+        self.aprs.send_position_report(
+            mycall="CALL-30",
+            path=["WIDE1-1"],
+            lat_dmm="5132.07N",
+            long_dmm="00007.40W",
+            symbol_id="/",
+            symbol_code=">",
+            comment="Test position",
+            time_dhm="011234z"
+        )
+        self.assertTrue(proto.written_frames)
+        frame = proto.written_frames[0]
+        self.assertIn(b"/011234z5132.07N/00007.40W>Test position", frame.info)
+
+    def test_send_position_report_success_without_time(self):
+        proto = DummyKissProtocol()
+        self.aprs.kiss_protocol = proto
+        self.aprs.initialized = True
+        self.aprs.APRS_SW_VERSION = "APDW16"
+        self.aprs.send_position_report(
+            mycall="CALL-31",
+            path=["WIDE1-1"],
+            lat_dmm="5132.07N",
+            long_dmm="00007.40W",
+            symbol_id="/",
+            symbol_code=">",
+            comment="No time"
+            # time_dhm omitted
+        )
+        self.assertTrue(proto.written_frames)
+        frame = proto.written_frames[0]
+        self.assertIn(b"!5132.07N/00007.40W>No time", frame.info)
+
+    def test_send_position_report_invalid_time(self):
+        self.aprs.initialized = True
+        with self.assertRaises(ValueError):
+            self.aprs.send_position_report(
+                mycall="CALL-32",
+                path=["WIDE1-1"],
+                lat_dmm="5132.07N",
+                long_dmm="00007.40W",
+                symbol_id="/",
+                symbol_code=">",
+                comment="Bad time",
+                time_dhm="01123z"  # Too short
+            )
+
+    def test_send_position_report_invalid_lat(self):
+        self.aprs.initialized = True
+        with self.assertRaises(ValueError):
+            self.aprs.send_position_report(
+                mycall="CALL-33",
+                path=["WIDE1-1"],
+                lat_dmm="BADLAT",
+                long_dmm="00007.40W",
+                symbol_id="/",
+                symbol_code=">",
+                comment="Bad lat"
+            )
+
+    def test_send_position_report_invalid_long(self):
+        self.aprs.initialized = True
+        with self.assertRaises(ValueError):
+            self.aprs.send_position_report(
+                mycall="CALL-34",
+                path=["WIDE1-1"],
+                lat_dmm="5132.07N",
+                long_dmm="BADLONG",
+                symbol_id="/",
+                symbol_code=">",
+                comment="Bad long"
+            )
+
+    def test_send_position_report_invalid_symbol_id(self):
+        self.aprs.initialized = True
+        with self.assertRaises(ValueError):
+            self.aprs.send_position_report(
+                mycall="CALL-35",
+                path=["WIDE1-1"],
+                lat_dmm="5132.07N",
+                long_dmm="00007.40W",
+                symbol_id="XX",
+                symbol_code=">",
+                comment="Bad symbol id"
+            )
+
+    def test_send_position_report_invalid_symbol_code(self):
+        self.aprs.initialized = True
+        with self.assertRaises(ValueError):
+            self.aprs.send_position_report(
+                mycall="CALL-36",
+                path=["WIDE1-1"],
+                lat_dmm="5132.07N",
+                long_dmm="00007.40W",
+                symbol_id="/",
+                symbol_code=">>",
+                comment="Bad symbol code"
+            )
+
+    def test_send_position_report_invalid_comment(self):
+        self.aprs.initialized = True
+        with self.assertRaises(ValueError):
+            self.aprs.send_position_report(
+                mycall="CALL-37",
+                path=["WIDE1-1"],
+                lat_dmm="5132.07N",
+                long_dmm="00007.40W",
+                symbol_id="/",
+                symbol_code=">",
+                comment="X" * 44
+            )
+
+    def test_send_position_report_not_initialized(self):
+        self.aprs.initialized = False
+        with self.assertRaises(AprsError):
+            self.aprs.send_position_report(
+                mycall="CALL-38",
+                path=["WIDE1-1"],
+                lat_dmm="5132.07N",
+                long_dmm="00007.40W",
+                symbol_id="/",
+                symbol_code=">",
+                comment="Test"
+            )
+
+    def test_send_position_report_write_exception(self):
+        class BadProto(DummyKissProtocol):
+            def write(self, frame): raise RuntimeError("fail")
+        self.aprs.kiss_protocol = BadProto()
+        self.aprs.initialized = True
+        with self.assertRaises(AprsError):
+            self.aprs.send_position_report(
+                mycall="CALL-39",
+                path=["WIDE1-1"],
+                lat_dmm="5132.07N",
+                long_dmm="00007.40W",
+                symbol_id="/",
+                symbol_code=">",
+                comment="Test"
+            )
 
 if __name__ == "__main__":
     unittest.main()

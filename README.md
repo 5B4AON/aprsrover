@@ -302,7 +302,7 @@ async def main():
         message="Hello APRS"
     )
 
-    # Send an object (with validation)
+    # Send an object report (with optional name)
     aprs.send_object_report(
         mycall="5B4AON-9",
         path=["WIDE1-1"],
@@ -311,7 +311,21 @@ async def main():
         long_dmm="00007.40W",         # DMM format + E/W
         symbol_id="/",                # 1 character
         symbol_code="O",              # 1 character
-        comment="Test object"         # up to 43 characters
+        comment="090/045 Test object",# up to 43 chars, may include course/speed etc.
+        name="OBJ1"                   # Optional, up to 9 chars. If omitted, uses mycall.
+    )
+
+    # Send an object report without specifying name (uses mycall)
+    aprs.send_object_report(
+        mycall="5B4AON-9",
+        path=["WIDE1-1"],
+        time_dhm="011234z",
+        lat_dmm="5132.07N",
+        long_dmm="00007.40W",
+        symbol_id="/",
+        symbol_code="O",
+        comment="Test object"
+        # name omitted
     )
 
 if __name__ == "__main__":

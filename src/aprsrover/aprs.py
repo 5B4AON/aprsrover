@@ -5,7 +5,7 @@ This module provides the Aprs class for interacting with a KISS TNC (Terminal No
 using the AX.25 protocol for APRS (Automatic Packet Reporting System) messaging. It supports:
 
 - Connecting to a KISS TNC over TCP (async, must be awaited)
-- Sending APRS messages and objects with parameter validation
+- Sending APRS messages, object reports and position reports with parameter validation
 - Registering and managing observer callbacks for incoming frames, filtered by callsign
 - Utility methods for extracting messages addressed to a specific callsign
 - Acknowledging received APRS messages
@@ -324,6 +324,7 @@ class Aprs:
         symbol_id: str,
         symbol_code: str,
         comment: str,
+        name: Optional[str] = None,
     ) -> None:
         """
         Send an APRS object report.
@@ -336,7 +337,8 @@ class Aprs:
             long_dmm: The longitude in DMM format (e.g., '00007.40W').
             symbol_id: The symbol ID (1 character).
             symbol_code: The symbol code (1 character).
-            comment: The comment field. May contain any appropriate APRS data, such as free text, course, speed, telemetry, or other APRS-compatible extensions.
+            comment: The comment field (43 characters). May contain any appropriate APRS data, such as free text, course, speed, telemetry, or other APRS-compatible extensions.
+            name: Optional object name (up to 9 characters). If not provided, uses `mycall`.
 
         Raises:
             AprsError: If the KISS protocol is not initialized or sending fails.
@@ -418,8 +420,16 @@ class Aprs:
             )
             raise ValueError("comment must be a string of 0 to 43 characters.")
 
+        # Validate name (object name)
+        obj_name = name if name is not None else mycall
+        if not isinstance(obj_name, str) or not (1 <= len(obj_name) <= 9):
+            logging.error(
+                "name must be a string of 1 to 9 characters. Got: %r", obj_name
+            )
+            raise ValueError("name must be a string of 1 to 9 characters.")
+
         info = (
-            f";{mycall}".ljust(10)
+            f";{obj_name}".ljust(10)
             + f"*{time_dhm}{lat_dmm}{symbol_id}{long_dmm}{symbol_code}{comment}"
         )
         try:
@@ -462,3 +472,130 @@ class Aprs:
                     )
         except Exception as e:
             logging.error(f"Failed to send APRS acknowledgment: {e}")
+
+    def send_position_report(
+        self,
+        mycall: str,
+        path: list[str],
+        lat_dmm: str,
+        long_dmm: str,
+        symbol_id: str,
+        symbol_code: str,
+        comment: str,
+        time_dhm: Optional[str] = None,
+    ) -> None:
+        """
+        Send an APRS position report.
+
+        Args:
+            mycall: My callsign (3-6 uppercase alphanumeric characters, then '-', then 1-2 digits, max 9 chars).
+            path: The digipeater path as a list of strings.
+            lat_dmm: The latitude in DMM format (7 digits + N/S, e.g., '5132.07N').
+            long_dmm: The longitude in DMM format (e.g., '00007.40W').
+            symbol_id: The symbol ID (1 character).
+            symbol_code: The symbol code (1 character).
+            comment: The comment field (43 characters).
+            time_dhm: Optional time in DHM format (6 digits followed by 'z', e.g., '011234z').
+
+        Raises:
+            AprsError: If the KISS protocol is not initialized or sending fails.
+            ValueError: If any parameter is invalid.
+        """
+        if not self.initialized:
+            logging.error("Cannot send position: KISS protocol not initialized.")
+            raise AprsError("KISS protocol not initialized.")
+
+        # Validate mycall (same as other callsigns: 3-6 uppercase alphanumeric, dash, 1-2 digits, max 9 chars)
+        callsign_pattern = re.compile(r"^[A-Z0-9]{3,6}-\d{1,2}$")
+        if (
+            not isinstance(mycall, str)
+            or not callsign_pattern.fullmatch(mycall)
+            or len(mycall) > 9
+        ):
+            logging.error(
+                "mycall must be 3-6 uppercase alphanumeric characters, a dash, then 1-2 digits (max 9 chars). Got: %r",
+                mycall
+            )
+            raise ValueError(
+                "mycall must be 3-6 uppercase alphanumeric characters, a dash, then 1-2 digits (max 9 chars)."
+            )
+
+        # Validate path
+        if not isinstance(path, list) or not all(isinstance(p, str) and p for p in path):
+            logging.error("path must be a list of non-empty strings. Got: %r", path)
+            raise ValueError("path must be a list of non-empty strings.")
+
+        # Validate lat_dmm (must be 7 digits + N/S, e.g., '5132.07N')
+        if (
+            not isinstance(lat_dmm, str)
+            or len(lat_dmm) != 8
+            or not lat_dmm[:7].replace(".", "", 1).isdigit()
+            or lat_dmm[-1] not in "NS"
+        ):
+            logging.error(
+                "lat_dmm must be 7 digits (with optional dot) followed by N or S. Got: %r", lat_dmm
+            )
+            raise ValueError(
+                "lat_dmm must be 7 digits (with optional dot) followed by N or S (e.g., '5132.07N')."
+            )
+
+        # Validate long_dmm
+        if (
+            not isinstance(long_dmm, str)
+            or len(long_dmm) < 8
+            or not long_dmm[:-1].replace(".", "", 1).isdigit()
+            or long_dmm[-1] not in "EW"
+        ):
+            logging.error("long_dmm must be in DMM format ending with E or W. Got: %r", long_dmm)
+            raise ValueError("long_dmm must be in DMM format ending with E or W.")
+
+        # Validate symbol_id
+        if not isinstance(symbol_id, str) or len(symbol_id) != 1:
+            logging.error("symbol_id must be a single character. Got: %r", symbol_id)
+            raise ValueError("symbol_id must be a single character.")
+
+        # Validate symbol_code
+        if not isinstance(symbol_code, str) or len(symbol_code) != 1:
+            logging.error("symbol_code must be a single character. Got: %r", symbol_code)
+            raise ValueError("symbol_code must be a single character.")
+
+        # Validate comment
+        if not isinstance(comment, str) or not (0 <= len(comment) <= 43):
+            logging.error(
+                "comment must be a string of 0 to 43 characters. Got length: %d",
+                len(comment) if isinstance(comment, str) else -1,
+            )
+            raise ValueError("comment must be a string of 0 to 43 characters.")
+
+        # Validate time_dhm if provided
+        if time_dhm is not None:
+            if (
+                not isinstance(time_dhm, str)
+                or len(time_dhm) != 7
+                or not time_dhm[:6].isdigit()
+                or time_dhm[-1] != "z"
+            ):
+                logging.error("time_dhm must be a 6-digit string followed by 'z'. Got: %r", time_dhm)
+                raise ValueError("time_dhm must be a 6-digit string followed by 'z' (e.g., '011234z').")
+
+        # Build info field (with or without time)
+        if time_dhm:
+            info = (
+                f"/{time_dhm}{lat_dmm}{symbol_id}{long_dmm}{symbol_code}{comment}"
+            )
+        else:
+            info = (
+                f"!{lat_dmm}{symbol_id}{long_dmm}{symbol_code}{comment}"
+            )
+        try:
+            frame = Frame.ui(
+                destination=self.APRS_SW_VERSION,
+                source=mycall,
+                path=path,
+                info=info.encode("utf-8"),
+            )
+            self.kiss_protocol.write(frame)
+            logging.info(f"Sent APRS position: {info}")
+        except Exception as e:
+            logging.error(f"Failed to send APRS position: {e}")
+            raise AprsError(f"Failed to send APRS position: {e}")
