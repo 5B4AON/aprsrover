@@ -97,7 +97,7 @@ async def main() -> None:
                     )
                     print("APRS message sent.")
                     # Send final object report
-                    aprs.send_my_object_no_course_speed(
+                    aprs.send_object_report(
                         mycall=CALLSIGN_FROM,
                         path=APRS_PATH,
                         time_dhm=tm_dhm,
@@ -136,7 +136,7 @@ async def main() -> None:
                                 continue
                             lat_dmm, lon_dmm, tm_dhm, _ = gps_data_dmm
 
-                            aprs.send_my_object_no_course_speed(
+                            aprs.send_object_report(
                                 mycall=CALLSIGN_FROM,
                                 path=APRS_PATH,
                                 time_dhm=tm_dhm,

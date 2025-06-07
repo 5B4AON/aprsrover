@@ -314,7 +314,7 @@ class Aprs:
             logging.error(f"Failed to send APRS message: {e}")
             raise AprsError(f"Failed to send APRS message: {e}")
 
-    def send_my_object_no_course_speed(
+    def send_object_report(
         self,
         mycall: str,
         path: list[str],
@@ -326,7 +326,7 @@ class Aprs:
         comment: str,
     ) -> None:
         """
-        Send an APRS object with a comment, without including course and speed data.
+        Send an APRS object report.
 
         Args:
             mycall: My callsign (3-6 uppercase alphanumeric characters, then '-', then 1-2 digits, max 9 chars).
@@ -336,7 +336,7 @@ class Aprs:
             long_dmm: The longitude in DMM format (e.g., '00007.40W').
             symbol_id: The symbol ID (1 character).
             symbol_code: The symbol code (1 character).
-            comment: The comment text (0 to 43 characters).
+            comment: The comment field. May contain any appropriate APRS data, such as free text, course, speed, telemetry, or other APRS-compatible extensions.
 
         Raises:
             AprsError: If the KISS protocol is not initialized or sending fails.

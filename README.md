@@ -303,7 +303,7 @@ async def main():
     )
 
     # Send an object (with validation)
-    aprs.send_my_object_no_course_speed(
+    aprs.send_object_report(
         mycall="5B4AON-9",
         path=["WIDE1-1"],
         time_dhm="011234z",           # 6 digits + 'z'
@@ -343,7 +343,7 @@ aprs.kiss_protocol = DummyKISS()  # For direct calls in tests
 **Note:**  
 - All APRS message/object sending methods validate their parameters and raise exceptions on invalid input.
 - Both `mycall` and `recipient` must be 3-6 uppercase alphanumeric characters, a dash, then 1-2 digits (e.g., `5B4AON-9`), with a maximum total length of 9.
-- For `send_my_object_no_course_speed`, `time_dhm` must be 6 digits followed by 'z' (e.g., '011234z'), and `lat_dmm` must be 7 digits (with optional dot) followed by 'N' or 'S' (e.g., '5132.07N').
+- For `send_object_report`, `time_dhm` must be 6 digits followed by 'z' (e.g., '011234z'), and `lat_dmm` must be 7 digits (with optional dot) followed by 'N' or 'S' (e.g., '5132.07N').
 - Requires the `kiss3` and `ax253` libraries for KISS TNC and AX.25 frame handling.
 
 ---

@@ -102,7 +102,7 @@ def pos_callback(frame: Frame) -> None:
             return
         lat, lon, tm, _ = gps_data
         print(f"Sending position object: {lat}, {lon}, {tm}")
-        aprs.send_my_object_no_course_speed(
+        aprs.send_object_report(
             mycall=CALLSIGN,
             path=APRS_PATH,
             time_dhm=tm,

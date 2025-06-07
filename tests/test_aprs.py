@@ -171,11 +171,11 @@ class TestAprs(unittest.TestCase):
                 message="Hello"
             )
 
-    def test_send_my_object_no_course_speed_success(self):
+    def test_send_object_report_success(self):
         proto = DummyKissProtocol()
         self.aprs.kiss_protocol = proto
         self.aprs.initialized = True
-        self.aprs.send_my_object_no_course_speed(
+        self.aprs.send_object_report(
             mycall="CALL-14",
             path=["WIDE1-1"],
             time_dhm="011234z",
@@ -189,10 +189,10 @@ class TestAprs(unittest.TestCase):
         frame = proto.written_frames[0]
         self.assertIn(b"Test object", frame.info)
 
-    def test_send_my_object_no_course_speed_invalid_callsign(self):
+    def test_send_object_report_invalid_callsign(self):
         self.aprs.initialized = True
         with self.assertRaises(ValueError):
-            self.aprs.send_my_object_no_course_speed(
+            self.aprs.send_object_report(
                 mycall="BADCALL",
                 path=["WIDE1-1"],
                 time_dhm="011234z",
@@ -203,10 +203,10 @@ class TestAprs(unittest.TestCase):
                 comment="Test object"
             )
 
-    def test_send_my_object_no_course_speed_invalid_path(self):
+    def test_send_object_report_invalid_path(self):
         self.aprs.initialized = True
         with self.assertRaises(ValueError):
-            self.aprs.send_my_object_no_course_speed(
+            self.aprs.send_object_report(
                 mycall="CALL-15",
                 path=[""],
                 time_dhm="011234z",
@@ -217,10 +217,10 @@ class TestAprs(unittest.TestCase):
                 comment="Test object"
             )
 
-    def test_send_my_object_no_course_speed_invalid_time(self):
+    def test_send_object_report_invalid_time(self):
         self.aprs.initialized = True
         with self.assertRaises(ValueError):
-            self.aprs.send_my_object_no_course_speed(
+            self.aprs.send_object_report(
                 mycall="CALL-16",
                 path=["WIDE1-1"],
                 time_dhm="01123z",  # Too short
@@ -231,10 +231,10 @@ class TestAprs(unittest.TestCase):
                 comment="Test object"
             )
 
-    def test_send_my_object_no_course_speed_invalid_lat(self):
+    def test_send_object_report_invalid_lat(self):
         self.aprs.initialized = True
         with self.assertRaises(ValueError):
-            self.aprs.send_my_object_no_course_speed(
+            self.aprs.send_object_report(
                 mycall="CALL-17",
                 path=["WIDE1-1"],
                 time_dhm="011234z",
@@ -245,10 +245,10 @@ class TestAprs(unittest.TestCase):
                 comment="Test object"
             )
 
-    def test_send_my_object_no_course_speed_invalid_long(self):
+    def test_send_object_report_invalid_long(self):
         self.aprs.initialized = True
         with self.assertRaises(ValueError):
-            self.aprs.send_my_object_no_course_speed(
+            self.aprs.send_object_report(
                 mycall="CALL-18",
                 path=["WIDE1-1"],
                 time_dhm="011234z",
@@ -259,10 +259,10 @@ class TestAprs(unittest.TestCase):
                 comment="Test object"
             )
 
-    def test_send_my_object_no_course_speed_invalid_symbol_id(self):
+    def test_send_object_report_invalid_symbol_id(self):
         self.aprs.initialized = True
         with self.assertRaises(ValueError):
-            self.aprs.send_my_object_no_course_speed(
+            self.aprs.send_object_report(
                 mycall="CALL-19",
                 path=["WIDE1-1"],
                 time_dhm="011234z",
@@ -273,10 +273,10 @@ class TestAprs(unittest.TestCase):
                 comment="Test object"
             )
 
-    def test_send_my_object_no_course_speed_invalid_symbol_code(self):
+    def test_send_object_report_invalid_symbol_code(self):
         self.aprs.initialized = True
         with self.assertRaises(ValueError):
-            self.aprs.send_my_object_no_course_speed(
+            self.aprs.send_object_report(
                 mycall="CALL-20",
                 path=["WIDE1-1"],
                 time_dhm="011234z",
@@ -287,10 +287,10 @@ class TestAprs(unittest.TestCase):
                 comment="Test object"
             )
 
-    def test_send_my_object_no_course_speed_invalid_comment(self):
+    def test_send_object_report_invalid_comment(self):
         self.aprs.initialized = True
         with self.assertRaises(ValueError):
-            self.aprs.send_my_object_no_course_speed(
+            self.aprs.send_object_report(
                 mycall="CALL-21",
                 path=["WIDE1-1"],
                 time_dhm="011234z",
@@ -301,10 +301,10 @@ class TestAprs(unittest.TestCase):
                 comment="X" * 44
             )
 
-    def test_send_my_object_no_course_speed_not_initialized(self):
+    def test_send_object_report_not_initialized(self):
         self.aprs.initialized = False
         with self.assertRaises(AprsError):
-            self.aprs.send_my_object_no_course_speed(
+            self.aprs.send_object_report(
                 mycall="CALL-22",
                 path=["WIDE1-1"],
                 time_dhm="011234z",
@@ -315,13 +315,13 @@ class TestAprs(unittest.TestCase):
                 comment="Test object"
             )
 
-    def test_send_my_object_no_course_speed_write_exception(self):
+    def test_send_object_report_write_exception(self):
         class BadProto(DummyKissProtocol):
             def write(self, frame): raise RuntimeError("fail")
         self.aprs.kiss_protocol = BadProto()
         self.aprs.initialized = True
         with self.assertRaises(AprsError):
-            self.aprs.send_my_object_no_course_speed(
+            self.aprs.send_object_report(
                 mycall="CALL-23",
                 path=["WIDE1-1"],
                 time_dhm="011234z",
