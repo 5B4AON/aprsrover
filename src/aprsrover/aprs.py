@@ -599,3 +599,97 @@ class Aprs:
         except Exception as e:
             logging.error(f"Failed to send APRS position: {e}")
             raise AprsError(f"Failed to send APRS position: {e}")
+
+    def send_status_report(
+        self,
+        mycall: str,
+        path: list[str],
+        status: str,
+        time_dhm: Optional[str] = None,
+    ) -> None:
+        """
+        Send an APRS Status Report (Data Type Identifier '>').
+
+        Args:
+            mycall: My callsign (3-6 uppercase alphanumeric characters, then '-', then 1-2 digits, max 9 chars).
+            path: The digipeater path as a list of strings.
+            status: The status text (up to 62 chars without timestamp, or 55 chars with timestamp).
+                May contain any printable ASCII except | or ~.
+            time_dhm: Optional timestamp in DHM zulu format (6 digits + 'z', e.g., '092345z').
+
+        Raises:
+            AprsError: If the KISS protocol is not initialized or sending fails.
+            ValueError: If any parameter is invalid.
+
+        Example:
+            aprs.send_status_report(
+                mycall="5B4AON-9",
+                path=["WIDE1-1"],
+                status="Net Control Center",
+                time_dhm="092345z"
+            )
+        """
+        if not self.initialized:
+            logging.error("Cannot send status: KISS protocol not initialized.")
+            raise AprsError("KISS protocol not initialized.")
+
+        # Validate mycall
+        callsign_pattern = re.compile(r"^[A-Z0-9]{3,6}-\d{1,2}$")
+        if (
+            not isinstance(mycall, str)
+            or not callsign_pattern.fullmatch(mycall)
+            or len(mycall) > 9
+        ):
+            logging.error(
+                "mycall must be 3-6 uppercase alphanumeric characters, a dash, then 1-2 digits (max 9 chars). Got: %r",
+                mycall
+            )
+            raise ValueError(
+                "mycall must be 3-6 uppercase alphanumeric characters, a dash, then 1-2 digits (max 9 chars)."
+            )
+
+        # Validate path
+        if not isinstance(path, list) or not all(isinstance(p, str) and p for p in path):
+            logging.error("path must be a list of non-empty strings. Got: %r", path)
+            raise ValueError("path must be a list of non-empty strings.")
+
+        # Validate time_dhm if provided
+        if time_dhm is not None:
+            if (
+                not isinstance(time_dhm, str)
+                or len(time_dhm) != 7
+                or not time_dhm[:6].isdigit()
+                or time_dhm[-1] != "z"
+            ):
+                logging.error("time_dhm must be a 6-digit string followed by 'z'. Got: %r", time_dhm)
+                raise ValueError("time_dhm must be a 6-digit string followed by 'z' (e.g., '092345z').")
+
+        # Validate status text
+        if not isinstance(status, str):
+            raise ValueError("status must be a string.")
+        if "|" in status or "~" in status:
+            raise ValueError("status text may not contain '|' or '~'.")
+        max_len = 55 if time_dhm else 62
+        if not (1 <= len(status) <= max_len):
+            raise ValueError(
+                f"status must be 1 to {max_len} characters (got {len(status)})."
+            )
+
+        # Build info field
+        if time_dhm:
+            info = f">{time_dhm}{status}"
+        else:
+            info = f">{status}"
+
+        try:
+            frame = Frame.ui(
+                destination=self.APRS_SW_VERSION,
+                source=mycall,
+                path=path,
+                info=info.encode("utf-8"),
+            )
+            self.kiss_protocol.write(frame)
+            logging.info(f"Sent APRS status report: {info}")
+        except Exception as e:
+            logging.error(f"Failed to send APRS status report: {e}")
+            raise AprsError(f"Failed to send APRS status report: {e}")

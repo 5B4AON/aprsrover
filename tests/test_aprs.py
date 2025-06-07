@@ -612,5 +612,99 @@ class TestAprs(unittest.TestCase):
                 comment="Test"
             )
 
+    def test_send_status_report_success_with_time(self):
+        proto = DummyKissProtocol()
+        self.aprs.kiss_protocol = proto
+        self.aprs.initialized = True
+        self.aprs.APRS_SW_VERSION = "APDW16"
+        self.aprs.send_status_report(
+            mycall="CALL-40",
+            path=["WIDE1-1"],
+            status="Net Control Center",
+            time_dhm="092345z"
+        )
+        self.assertTrue(proto.written_frames)
+        frame = proto.written_frames[0]
+        self.assertIn(b">092345zNet Control Center", frame.info)
+
+    def test_send_status_report_success_without_time(self):
+        proto = DummyKissProtocol()
+        self.aprs.kiss_protocol = proto
+        self.aprs.initialized = True
+        self.aprs.APRS_SW_VERSION = "APDW16"
+        self.aprs.send_status_report(
+            mycall="CALL-41",
+            path=["WIDE1-1"],
+            status="Mission started"
+            # time_dhm omitted
+        )
+        self.assertTrue(proto.written_frames)
+        frame = proto.written_frames[0]
+        self.assertIn(b">Mission started", frame.info)
+
+    def test_send_status_report_invalid_time(self):
+        self.aprs.initialized = True
+        with self.assertRaises(ValueError):
+            self.aprs.send_status_report(
+                mycall="CALL-42",
+                path=["WIDE1-1"],
+                status="Bad time",
+                time_dhm="09234z"  # Too short
+            )
+
+    def test_send_status_report_invalid_status_too_long(self):
+        self.aprs.initialized = True
+        # 63 chars, should fail (max 62 without time)
+        with self.assertRaises(ValueError):
+            self.aprs.send_status_report(
+                mycall="CALL-43",
+                path=["WIDE1-1"],
+                status="X" * 63
+            )
+        # 56 chars, should fail (max 55 with time)
+        with self.assertRaises(ValueError):
+            self.aprs.send_status_report(
+                mycall="CALL-44",
+                path=["WIDE1-1"],
+                status="X" * 56,
+                time_dhm="092345z"
+            )
+
+    def test_send_status_report_invalid_status_chars(self):
+        self.aprs.initialized = True
+        with self.assertRaises(ValueError):
+            self.aprs.send_status_report(
+                mycall="CALL-45",
+                path=["WIDE1-1"],
+                status="Bad|status"
+            )
+        with self.assertRaises(ValueError):
+            self.aprs.send_status_report(
+                mycall="CALL-46",
+                path=["WIDE1-1"],
+                status="Bad~status"
+            )
+
+    def test_send_status_report_not_initialized(self):
+        self.aprs.initialized = False
+        with self.assertRaises(AprsError):
+            self.aprs.send_status_report(
+                mycall="CALL-47",
+                path=["WIDE1-1"],
+                status="Test"
+            )
+
+    def test_send_status_report_write_exception(self):
+        class BadProto(DummyKissProtocol):
+            def write(self, frame): raise RuntimeError("fail")
+        self.aprs.kiss_protocol = BadProto()
+        self.aprs.initialized = True
+        with self.assertRaises(AprsError):
+            self.aprs.send_status_report(
+                mycall="CALL-48",
+                path=["WIDE1-1"],
+                status="Test"
+            )
+
 if __name__ == "__main__":
     unittest.main()

@@ -19,6 +19,8 @@ Designed for easy integration, asynchronous operation, and high testability with
   - [APRS Usage](#aprs-usage)
     - [Receiving Frames: Registering Observers and Listening for Messages](#receiving-frames-registering-observers-and-listening-for-messages)
     - [Sending APRS Messages and Object Reports](#sending-aprs-messages-and-object-reports)
+    - [Sending APRS Status Reports](#sending-aprs-status-reports)
+    - [Sending APRS Position Reports](#sending-aprs-position-reports)
 - [Switch Features](#switch-features)
   - [Switch Usage](#switch-usage)
 - [Examples](#examples)
@@ -331,6 +333,92 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
 ```
+
+### Sending APRS Status Reports
+
+You can send a status report to announce your station’s current mission or any other single-line status.  
+The report starts with the `>` APRS Data Type Identifier and may optionally include a timestamp in DHM zulu format.  
+The status text may be up to 62 characters (without timestamp) or 55 characters (with timestamp), and may contain any printable ASCII except `|` or `~`.
+
+```python
+from aprsrover.aprs import Aprs
+import asyncio
+
+async def main():
+    aprs = Aprs(host="localhost", port=8001)
+    await aprs.connect()
+
+    # Send a status report with a timestamp
+    aprs.send_status_report(
+        mycall="5B4AON-9",
+        path=["WIDE1-1"],
+        status="Net Control Center",
+        time_dhm="092345z"  # Optional, 6 digits + 'z'
+    )
+
+    # Send a status report without a timestamp
+    aprs.send_status_report(
+        mycall="5B4AON-9",
+        path=["WIDE1-1"],
+        status="Mission started"
+        # time_dhm omitted
+    )
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+**Note:**  
+- The `status` field must not contain `|` or `~`.
+- If `time_dhm` is provided, it must be 6 digits followed by 'z' (e.g., '092345z').
+- The status text is limited to 62 characters without a timestamp, or 55 characters with a timestamp.
+
+### Sending APRS Position Reports
+
+You can send a position report with or without a timestamp.  
+The position report includes latitude, longitude, symbol, and an optional comment (up to 43 characters).  
+If you provide a timestamp (`time_dhm`), it must be in DHM zulu format (6 digits + 'z', e.g., '092345z').
+
+```python
+from aprsrover.aprs import Aprs
+import asyncio
+
+async def main():
+    aprs = Aprs(host="localhost", port=8001)
+    await aprs.connect()
+
+    # Send a position report with a timestamp
+    aprs.send_position_report(
+        mycall="5B4AON-9",
+        path=["WIDE1-1"],
+        lat_dmm="5132.07N",
+        long_dmm="00007.40W",
+        symbol_id="/",
+        symbol_code="O",
+        comment="Moving north",
+        time_dhm="092345z"  # Optional, 6 digits + 'z'
+    )
+
+    # Send a position report without a timestamp
+    aprs.send_position_report(
+        mycall="5B4AON-9",
+        path=["WIDE1-1"],
+        lat_dmm="5132.07N",
+        long_dmm="00007.40W",
+        symbol_id="/",
+        symbol_code="O",
+        comment="No timestamp"
+        # time_dhm omitted
+    )
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+**Note:**  
+- The `comment` field may contain any appropriate APRS data, up to 43 characters.
+- If `time_dhm` is provided, it must be 6 digits followed by 'z' (e.g., '092345z').
+- All parameters are validated and exceptions are raised on invalid input.
 
 ### Dummy APRS (KISS) Example
 
