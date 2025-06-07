@@ -221,16 +221,19 @@ class Aprs:
             frame: The received frame.
         """
         info = frame.info.decode("UTF-8")
-        for mycall, callbacks in self._observers.items():
-            if f":{mycall}" in info:
+        logging.debug(frame)
+        for callsign, callbacks in self._observers.items():
+            logging.debug(f"Looking for callsign:{callsign}")
+            if f":{callsign.ljust(9)}:" in info:
+                logging.debug(f"Invoking callbacks for: {callsign}")
                 for callback in callbacks:
                     try:
                         callback(frame)
                     except Exception as e:
-                        logging.error(f"Observer callback error for {mycall}: {e}")
+                        logging.error(f"Observer callback error for {callsign}: {e}")
 
     @staticmethod
-    def get_my_message(mycall: str, frame: Frame) -> Optional[str]:
+    def get_my_message(callsign: str, frame: Frame) -> Optional[str]:
         """
         Extract the message if it is addressed to my callsign.
 
@@ -241,33 +244,12 @@ class Aprs:
             str: The message if found, otherwise None.
         """
         info = frame.info.decode("UTF-8")
-        if f":{mycall}" in info:
-            message: str = info[info.index(f":{mycall}".ljust(10) + ":") + 11 :]
+        if f":{callsign}" in info:
+            message: str = info[info.index(f":{callsign}".ljust(10) + ":") + 11 :]
             if "{" in message:
                 message = message[0 : message.index("{")]
-            return message
+            return message.strip()
         return None
-
-    def acknowledge(self, frame: Frame, mycall: str, path: list[str]) -> None:
-        """
-        Send an acknowledgment for the received frame.
-
-        Args:
-            frame: The KISS frame to acknowledge.
-        """
-        if self.initialized and self.kiss_protocol is not None:
-            info = frame.info.decode("UTF-8")
-            if "{" in info:
-                ack = int(info[info.index("{") + 1 :])
-                ack_info = f":{frame.source}".ljust(10) + f":ack{ack}"
-                self.kiss_protocol.write(
-                    Frame.ui(
-                        destination="APDR16",
-                        source=mycall,
-                        path=path,
-                        info=ack_info.encode(),
-                    )
-                )
 
     def send_my_message_no_ack(
         self, mycall: str, path: list[str], recipient: str, message: str
@@ -452,3 +434,31 @@ class Aprs:
         except Exception as e:
             logging.error(f"Failed to send APRS object: {e}")
             raise AprsError(f"Failed to send APRS object: {e}")
+
+    def send_ack_if_requested(self, frame: Frame, mycall: str, path: list[str]) -> None:
+        """
+        Send an APRS acknowledgment for the received frame if an ack is requested.
+
+        Args:
+            frame: The KISS frame to acknowledge.
+            mycall: The sender's callsign.
+            path: The digipeater path as a list of strings.
+        """
+        try:
+            if self.initialized and self.kiss_protocol is not None:
+                info = frame.info.decode("UTF-8")
+                if "{" in info:
+                    ack = info[info.index("{") + 1 :].strip()
+                    # Only take up to the next space or end of string
+                    ack = ack.split()[0] if ack else ""
+                    ack_info = f":{frame.source}".ljust(10) + f":ack{ack}"
+                    self.kiss_protocol.write(
+                        Frame.ui(
+                            destination="APDR16",
+                            source=mycall,
+                            path=path,
+                            info=ack_info.encode(),
+                        )
+                    )
+        except Exception as e:
+            logging.error(f"Failed to send APRS acknowledgment: {e}")

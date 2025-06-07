@@ -77,8 +77,8 @@ class TestAprs(unittest.TestCase):
         called = []
         def cb(frame): called.append(frame)
         self.aprs.register_observer("DEST-1", cb)
-        # Frame info must contain ":DEST-1"
-        info = b":DEST-1:hello"
+        # Frame info must contain ":DEST-1   :" (callsign padded to 9 chars)
+        info = b":DEST-1   :hello"
         frame = Frame(destination="X", source="Y", path=[], info=info)
         self.aprs._notify_observers(frame)
         self.assertEqual(called[0], frame)
@@ -103,24 +103,6 @@ class TestAprs(unittest.TestCase):
         frame = Frame(destination="X", source="Y", path=[], info=info)
         msg = self.aprs.get_my_message("CALL-6", frame)
         self.assertIsNone(msg)
-
-    def test_acknowledge(self):
-        proto = DummyKissProtocol()
-        self.aprs.kiss_protocol = proto
-        self.aprs.initialized = True
-        info = b":CALL-7     :test{42"
-        frame = Frame(destination="X", source="SRC", path=[], info=info)
-        self.aprs.acknowledge(frame, "MYCALL-1", ["WIDE1-1"])
-        self.assertTrue(proto.written_frames)
-        ack_frame = proto.written_frames[0]
-        self.assertIn(b":ack42", ack_frame.info)
-
-    def test_acknowledge_not_initialized(self):
-        self.aprs.initialized = False
-        info = b":CALL-8     :test{42"
-        frame = Frame(destination="X", source="SRC", path=[], info=info)
-        # Should not raise
-        self.aprs.acknowledge(frame, "MYCALL-2", ["WIDE1-1"])
 
     def test_send_my_message_no_ack_success(self):
         proto = DummyKissProtocol()
@@ -374,7 +356,9 @@ class TestAprs(unittest.TestCase):
 
     def test_run_loop_and_cancel(self):
         proto = DummyKissProtocol()
-        frame = Frame(destination="X", source="Y", path=[], info=b":DEST-24:hello")
+        # Pad DEST-24 to 9 chars for APRS message format
+        info = b":DEST-24  :hello"
+        frame = Frame(destination="X", source="Y", path=[], info=info)
         proto.read_frames.append(frame)
         aprs = Aprs(host="localhost", port=8001, kiss=self.dummy_kiss)
         aprs.kiss_protocol = proto
@@ -393,6 +377,24 @@ class TestAprs(unittest.TestCase):
                 pass
         asyncio.run(run_and_cancel())
         self.assertTrue(called)
+
+    def test_send_ack_if_requested(self):
+        proto = DummyKissProtocol()
+        self.aprs.kiss_protocol = proto
+        self.aprs.initialized = True
+        info = b":CALL-7     :test{42"
+        frame = Frame(destination="X", source="SRC", path=[], info=info)
+        self.aprs.send_ack_if_requested(frame, "MYCALL-1", ["WIDE1-1"])
+        self.assertTrue(proto.written_frames)
+        ack_frame = proto.written_frames[0]
+        self.assertIn(b":ack42", ack_frame.info)
+
+    def test_send_ack_if_requested_not_initialized(self):
+        self.aprs.initialized = False
+        info = b":CALL-8     :test{42"
+        frame = Frame(destination="X", source="SRC", path=[], info=info)
+        # Should not raise
+        self.aprs.send_ack_if_requested(frame, "MYCALL-2", ["WIDE1-1"])
 
 if __name__ == "__main__":
     unittest.main()

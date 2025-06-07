@@ -30,14 +30,6 @@ aprs = Aprs(host="localhost", port=8001)
 gps = GPS()
 tracks = Tracks()
 
-def send_ack_if_requested(frame: Frame, mycall: str) -> None:
-    """Send an APRS acknowledgement if requested in the frame info."""
-    info = frame.info.decode("utf-8")
-    if "{" in info:
-        try:
-            aprs.acknowledge(frame, mycall, APRS_PATH)
-        except Exception as e:
-            print(f"Failed to send APRS ack: {e}")
 
 def move_callback(frame: Frame) -> None:
     """
@@ -102,7 +94,7 @@ def pos_callback(frame: Frame) -> None:
     msg = Aprs.get_my_message(CALLSIGN, frame)
     if msg != "Pos":
         return
-    send_ack_if_requested(frame, CALLSIGN)
+    aprs.send_ack_if_requested(frame, CALLSIGN)
     try:
         gps_data = gps.get_gps_data_dmm()
         if gps_data is None:
