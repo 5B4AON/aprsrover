@@ -44,7 +44,7 @@ def move_callback(frame: Frame) -> None:
     msg = Aprs.get_my_message(CALLSIGN, frame)
     if not msg or not msg.startswith("Mv "):
         return
-    send_ack_if_requested(frame, CALLSIGN)
+    aprs.send_ack_if_requested(frame, CALLSIGN, APRS_PATH)
     try:
         parts = msg[3:].strip().split()
         # Only process complete groups of 3
