@@ -1,16 +1,16 @@
 """
 Showcase: Send an APRS object report using DummyAPRS (sync)
 """
+import asyncio
 import logging
 from examples.dummies import DummyAPRS
 from aprsrover.aprs import Aprs
 
 logging.basicConfig(level=logging.DEBUG)
 
-def main() -> None:
+async def main() -> None:
     aprs = Aprs(host="localhost", port=8001, kiss=DummyAPRS())
-    aprs.kiss_protocol = DummyAPRS()
-    aprs.initialized = True
+    await aprs.connect()  # Synchronous connect for the dummy backend
     aprs.send_object_report(
         mycall="N0CALL-1",
         path=["WIDE1-1"],
@@ -25,4 +25,4 @@ def main() -> None:
     print("Object report sent!")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

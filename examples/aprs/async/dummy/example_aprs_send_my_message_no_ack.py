@@ -1,5 +1,5 @@
 """
-Async Example: Send an APRS message using the Dummy backend.
+Showcase: Send an APRS message with no ACK using DummyAPRS (sync)
 """
 import asyncio
 import logging
@@ -10,14 +10,14 @@ logging.basicConfig(level=logging.DEBUG)
 
 async def main() -> None:
     aprs = Aprs(host="localhost", port=8001, kiss=DummyAPRS())
-    await aprs.connect()
+    await aprs.connect()  # Synchronous connect for the dummy backend
     aprs.send_my_message_no_ack(
         mycall="N0CALL-1",
         path=["WIDE1-1"],
         recipient="DEST-1",
-        message="Hello from Dummy APRS (async)!"
+        message="Hello, no ACK!"
     )
-    print("Message sent!")
+    print("Message sent (no ACK)")
 
 if __name__ == "__main__":
     asyncio.run(main())
