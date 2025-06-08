@@ -1,14 +1,13 @@
 # APRSRover Examples
 
-This directory contains usage examples for the `aprsrover` library, organized by module, integration scenario, and backend type. The structure is designed to help you quickly find relevant examples for both real hardware and dummy (simulated) backends, and for both synchronous and asynchronous APIs.
+This directory contains usage examples for the `aprsrover` library, organized by module, integration scenario, and backend type. The structure is designed to help you quickly find relevant examples that use dummy (simulated) backends, but can be easily converted for real operations, using synchronous or asynchronous APIs depending on applicability.
 
 ## Directory Structure
 
 - `aprs/`, `gps/`, `hw_info/`, `switch/`, `tracks/`: Examples for each individual module.
   - `sync/` and `async/`: Synchronous and asynchronous usage examples.
-  - `real/` and `dummy/`: Real hardware and dummy backend examples.
+  - `dummy/`: Dummy backend examples.
 - `integration/`: Multi-module integration examples.
-  - `sync/` and `async/` subfolders, each with `real/` and `dummy/` as above.
 - `dummies/`: Central package for all dummy backend classes. Import dummies from here in your examples.
 
 ## Example Usage
@@ -23,10 +22,11 @@ This directory contains usage examples for the `aprsrover` library, organized by
 
 - To run an example from the project root:
   ```sh
-  $ PYTHONPATH=src python3 -m examples.aprs.async.dummy.example_aprs_send_async
+  $ PYTHONPATH=src python3 -m examples.aprs.async.dummy.example_aprs_send_my_message_no_ack
 
-  [DummyAPRS] Sending message to N0CALL: Hello from Dummy APRS (async)!
-  Message sent: True
+  2025-06-08 16:02:40,267 [INFO] root: Connected to KISS TNC at localhost:8001
+  2025-06-08 16:02:40,267 [INFO] root: Sent APRS message from N0CALL-1 to DEST-1: Hello, no ACK!
+  Message sent (no ACK)
   ```
 
 ## Adding New Examples
