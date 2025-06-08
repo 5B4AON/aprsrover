@@ -4,12 +4,20 @@ aprs.py - APRS KISS TNC interface and observer utilities
 This module provides the Aprs class for interacting with a KISS TNC (Terminal Node Controller)
 using the AX.25 protocol for APRS (Automatic Packet Reporting System) messaging. It supports:
 
+Features:
+
 - Connecting to a KISS TNC over TCP (async, must be awaited)
 - Sending APRS messages, object reports and position reports with parameter validation
 - Registering and managing observer callbacks for incoming frames, filtered by callsign
 - Utility methods for extracting messages addressed to a specific callsign
 - Acknowledging received APRS messages
 - **Dependency injection:** Allows injection of a custom KISS interface for testing or simulation
+
+Requires:
+
+- Python 3.10+
+- kiss3
+- ax253
 
 Usage example:
 
@@ -46,10 +54,6 @@ Testing with a DummyKISS interface:
     # Now you can call aprs.send_my_message_no_ack(...) etc. for unit testing without hardware.
 
 See the README.md for more usage examples and parameter details.
-
-Dependencies:
-    - kiss3
-    - ax253
 
 This module is designed to be imported and used from other Python scripts.
 """

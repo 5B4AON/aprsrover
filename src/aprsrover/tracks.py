@@ -23,6 +23,11 @@ Features:
 - All hardware access is abstracted for easy mocking in tests
 - Custom exception: `TracksError` for granular error handling
 
+Requires:
+
+- Python 3.10+
+- Adafruit-PCA9685
+
 Usage example:
 
     from aprsrover.tracks import Tracks

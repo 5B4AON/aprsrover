@@ -5,13 +5,20 @@ Provides a modular, testable interface for accessing GPS data via gpsd.
 Supports both real gpsd connections and dummy/mock GPS sources for testing.
 
 Features:
+
 - Modular GPS access via a dependency-injected interface.
 - Allows use of real gpsd or a dummy/mock for testing or non-hardware platforms.
 - Methods to retrieve GPS data in DMM (degrees and decimal minutes) or decimal format.
 - Input validation and robust error handling with custom exceptions.
 - Suitable for use in asynchronous or multi-threaded applications.
 
+Requires:
+
+- Python 3.10+
+- gpsd-py3
+
 Usage example:
+
     from aprsrover.gps import GPS, GPSDInterface
 
     gps = GPS()  # Uses default gpsd client
@@ -130,7 +137,7 @@ class GPS:
                 longitude = packet.lon
                 tm = packet.time
                 track = packet.track
-                if packet.mode >= 2:
+                if packet.mode >= 2: # Values: 0=no mode value yet seen, 1=no fix, 2=2D fix, 3=3D fix
                     lat_dmm = self.decimal_to_dmm(latitude, is_latitude=True)
                     lon_dmm = self.decimal_to_dmm(longitude, is_latitude=False)
                     tm_ddhhmmz = self.iso_to_ddhhmmz(tm)
@@ -177,7 +184,7 @@ class GPS:
                 longitude = packet.lon
                 tm = packet.time
                 track = packet.track
-                if packet.mode >= 2:
+                if packet.mode >= 2: # Values: 0=no mode value yet seen, 1=no fix, 2=2D fix, 3=3D fix
                     return (latitude, longitude, tm, float(track))
                 time.sleep(sleep_seconds)
             except Exception as exc:

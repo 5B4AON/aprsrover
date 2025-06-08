@@ -2,10 +2,24 @@
 switch.py
 
 Provides a modular, testable interface for managing GPIO-connected switches on a Raspberry Pi.
-Supports synchronous and asynchronous monitoring, and allows registration of callbacks for switch
-state changes.
+
+Features:
+
+- Supports both input and output configurations.
+- Allows synchronous and asynchronous state monitoring.
+- Provides a callback mechanism for state changes.
+- Thread-safe operations for multi-threaded applications.
+- Custom exception handling for GPIO errors.
+- Dependency injection for GPIO interface, allowing testing with mock objects.
+- Supports GPIO cleanup to release resources.
+
+Requires:
+
+- Python 3.10+
+- RPi.GPIO (if running on Raspberry Pi)
 
 Usage example:
+
     from aprsrover.switch import Switch, SwitchEvent, SwitchObserver
 
     def on_switch_change(event: SwitchEvent) -> None:

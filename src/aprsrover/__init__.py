@@ -1,7 +1,8 @@
 """
 aprsrover - APRS Rover Utilities
 
-This package provides utilities for APRS messaging, GPS, and rover track control.
+A modular Python library for controlling a rover using APRS, GPS, GPIO switches, and PWM tracks.  
+Designed for easy integration, asynchronous operation, and high testability with abstracted hardware access.
 """
 
 import logging

@@ -1,6 +1,6 @@
 # APRS Rover Library
 
-A modular, testable Python library for controlling a rover using APRS, GPS, GPIO switches, and PWM tracks.  
+A modular Python library for controlling a rover using APRS, GPS, GPIO switches, and PWM tracks.  
 Designed for easy integration, asynchronous operation, and high testability with abstracted hardware access.
 
 ---
@@ -536,6 +536,7 @@ See the `examples/` directory for real-world usage scenarios, including:
 - Adafruit-PCA9685
 - kiss3
 - ax253
+- RPi.GPIO (if running on Raspberry Pi)
 
 ## Installation
 ```
