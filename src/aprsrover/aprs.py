@@ -275,26 +275,10 @@ class Aprs:
             logging.error("Cannot send message: KISS protocol not initialized.")
             raise AprsError("KISS protocol not initialized.")
 
-        # Validate mycall and recipient
-        callsign_pattern = re.compile(r"^[A-Z0-9]{3,6}-\d{1,2}$")
-        for callsign, label in [(mycall, "mycall"), (recipient, "recipient")]:
-            if (
-                not isinstance(callsign, str)
-                or not callsign_pattern.fullmatch(callsign)
-                or len(callsign) > 9
-            ):
-                logging.error(
-                    "%s must be 3-6 uppercase alphanumeric characters, a dash, then 1-2 digits (max 9 chars). Got: %r",
-                    label, callsign
-                )
-                raise ValueError(
-                    f"{label} must be 3-6 uppercase alphanumeric characters, a dash, then 1-2 digits (max 9 chars)."
-                )
-
-        # Validate path
-        if not isinstance(path, list) or not all(isinstance(p, str) and p for p in path):
-            logging.error("path must be a list of non-empty strings. Got: %r", path)
-            raise ValueError("path must be a list of non-empty strings.")
+        # Use helper validation functions
+        self._validate_callsign(mycall, "mycall")
+        self._validate_callsign(recipient, "recipient")
+        self._validate_path(path)
 
         # Validate message
         if not isinstance(message, str) or not (1 <= len(message) <= 67):
@@ -318,6 +302,90 @@ class Aprs:
             logging.error(f"Failed to send APRS message: {e}")
             raise AprsError(f"Failed to send APRS message: {e}")
 
+    def _validate_callsign(self, callsign: str, param_name: str = "callsign") -> None:
+        """Validate APRS callsign format."""
+        callsign_pattern = re.compile(r"^[A-Z0-9]{3,6}-\d{1,2}$")
+        if not callsign_pattern.match(callsign) or len(callsign) > 9:
+            logging.error(
+                "%s must be 3-6 uppercase alphanumeric characters, a dash, then 1-2 digits (max 9 chars). Got: %r",
+                param_name,
+                callsign,
+            )
+            raise ValueError(
+                f"{param_name} must be 3-6 uppercase alphanumeric characters, a dash, then 1-2 digits (max 9 chars)."
+            )
+
+    def _validate_path(self, path: list[str]) -> None:
+        """Validate APRS path format."""
+        if not isinstance(path, list) or not all(isinstance(p, str) and p for p in path):
+            logging.error("path must be a list of non-empty strings. Got: %r", path)
+            raise ValueError("path must be a list of non-empty strings.")
+
+    def _validate_time_dhm(
+        self, time_dhm: Optional[str], param_name: str = "time_dhm", required: bool = False
+    ) -> None:
+        """Validate DHM time string if provided or required."""
+        if time_dhm is None:
+            if required:
+                logging.error("%s is required.", param_name)
+                raise ValueError(f"{param_name} is required.")
+            return  # Optional and not provided, so valid
+
+        if (
+            not isinstance(time_dhm, str)
+            or len(time_dhm) != 7
+            or not time_dhm[:6].isdigit()
+            or time_dhm[-1] != "z"
+        ):
+            logging.error(
+                "%s must be a 6-digit string followed by 'z'. Got: %r",
+                param_name,
+                time_dhm,
+            )
+            raise ValueError(
+                f"{param_name} must be a 6-digit string followed by 'z' (e.g., '011234z')."
+            )
+
+    def _validate_lat_dmm(self, lat_dmm: str) -> None:
+        """Validate latitude in DMM format."""
+        if (
+            not isinstance(lat_dmm, str)
+            or len(lat_dmm) < 8 # e.g. 5132.07N
+            or not lat_dmm[:-1].replace(".", "", 1).isdigit()
+            or lat_dmm[-1] not in "NS"
+        ):
+            logging.error("lat_dmm must be in DMM format ending with N or S. Got: %r", lat_dmm)
+            raise ValueError(
+                "lat_dmm must be 7 digits (with optional dot) followed by N or S (e.g., '5132.07N')."
+            )
+
+    def _validate_long_dmm(self, long_dmm: str) -> None:
+        """Validate longitude in DMM format."""
+        if (
+            not isinstance(long_dmm, str)
+            or len(long_dmm) < 8 # e.g. 00007.40W
+            or not long_dmm[:-1].replace(".", "", 1).isdigit()
+            or long_dmm[-1] not in "EW"
+        ):
+            logging.error("long_dmm must be in DMM format ending with E or W. Got: %r", long_dmm)
+            raise ValueError("long_dmm must be in DMM format ending with E or W.")
+
+    def _validate_symbol(self, symbol: str, param_name: str) -> None:
+        """Validate symbol ID or code (single character)."""
+        if not isinstance(symbol, str) or len(symbol) != 1:
+            logging.error("%s must be a single character. Got: %r", param_name, symbol)
+            raise ValueError(f"{param_name} must be a single character.")
+
+    def _validate_comment(self, comment: str, max_len: int = 43) -> None:
+        """Validate comment string."""
+        if not isinstance(comment, str) or not (0 <= len(comment) <= max_len):
+            logging.error(
+                "comment must be a string of 0 to %d characters. Got length: %d",
+                max_len,
+                len(comment) if isinstance(comment, str) else -1,
+            )
+            raise ValueError(f"comment must be a string of 0 to {max_len} characters.")
+
     def send_object_report(
         self,
         mycall: str,
@@ -331,7 +399,7 @@ class Aprs:
         name: Optional[str] = None,
     ) -> None:
         """
-        Send an APRS object report.
+        Sends an APRS object report.
 
         Args:
             mycall: My callsign (3-6 uppercase alphanumeric characters, then '-', then 1-2 digits, max 9 chars).
@@ -352,93 +420,32 @@ class Aprs:
             logging.error("Cannot send object: KISS protocol not initialized.")
             raise AprsError("KISS protocol not initialized.")
 
-        # Validate mycall (same as other callsigns: 3-6 uppercase alphanumeric, dash, 1-2 digits, max 9 chars)
-        callsign_pattern = re.compile(r"^[A-Z0-9]{3,6}-\d{1,2}$")
-        if (
-            not isinstance(mycall, str)
-            or not callsign_pattern.fullmatch(mycall)
-            or len(mycall) > 9
-        ):
-            logging.error(
-                "mycall must be 3-6 uppercase alphanumeric characters, a dash, then 1-2 digits (max 9 chars). Got: %r",
-                mycall
-            )
-            raise ValueError(
-                "mycall must be 3-6 uppercase alphanumeric characters, a dash, then 1-2 digits (max 9 chars)."
-            )
-
-        # Validate path
-        if not isinstance(path, list) or not all(isinstance(p, str) and p for p in path):
-            logging.error("path must be a list of non-empty strings. Got: %r", path)
-            raise ValueError("path must be a list of non-empty strings.")
-
-        # Validate time_dhm (must be 6 digits followed by 'z')
-        if (
-            not isinstance(time_dhm, str)
-            or len(time_dhm) != 7
-            or not time_dhm[:6].isdigit()
-            or time_dhm[-1] != "z"
-        ):
-            logging.error("time_dhm must be a 6-digit string followed by 'z'. Got: %r", time_dhm)
-            raise ValueError("time_dhm must be a 6-digit string followed by 'z' (e.g., '011234z').")
-
-        # Validate lat_dmm (must be 7 digits + N/S, e.g., '5132.07N')
-        if (
-            not isinstance(lat_dmm, str)
-            or len(lat_dmm) != 8
-            or not lat_dmm[:7].replace(".", "", 1).isdigit()
-            or lat_dmm[-1] not in "NS"
-        ):
-            logging.error(
-                "lat_dmm must be 7 digits (with optional dot) followed by N or S. Got: %r", lat_dmm
-            )
-            raise ValueError(
-                "lat_dmm must be 7 digits (with optional dot) followed by N or S (e.g., '5132.07N')."
-            )
-
-        # Validate long_dmm
-        if (
-            not isinstance(long_dmm, str)
-            or len(long_dmm) < 8
-            or not long_dmm[:-1].replace(".", "", 1).isdigit()
-            or long_dmm[-1] not in "EW"
-        ):
-            logging.error("long_dmm must be in DMM format ending with E or W. Got: %r", long_dmm)
-            raise ValueError("long_dmm must be in DMM format ending with E or W.")
-
-        # Validate symbol_id
-        if not isinstance(symbol_id, str) or len(symbol_id) != 1:
-            logging.error("symbol_id must be a single character. Got: %r", symbol_id)
-            raise ValueError("symbol_id must be a single character.")
-
-        # Validate symbol_code
-        if not isinstance(symbol_code, str) or len(symbol_code) != 1:
-            logging.error("symbol_code must be a single character. Got: %r", symbol_code)
-            raise ValueError("symbol_code must be a single character.")
-
-        # Validate comment
-        if not isinstance(comment, str) or not (0 <= len(comment) <= 43):
-            logging.error(
-                "comment must be a string of 0 to 43 characters. Got length: %d",
-                len(comment) if isinstance(comment, str) else -1,
-            )
-            raise ValueError("comment must be a string of 0 to 43 characters.")
+        self._validate_callsign(mycall, "mycall")
+        self._validate_path(path)
+        self._validate_time_dhm(time_dhm, required=True)
+        self._validate_lat_dmm(lat_dmm)
+        self._validate_long_dmm(long_dmm)
+        self._validate_symbol(symbol_id, "symbol_id")
+        self._validate_symbol(symbol_code, "symbol_code")
+        self._validate_comment(comment)
 
         # Validate name (object name)
         obj_name = name if name is not None else mycall
         if not isinstance(obj_name, str) or not (1 <= len(obj_name) <= 9):
             logging.error(
-                "name must be a string of 1 to 9 characters. Got: %r", obj_name
+                "Object name must be a string of 1 to 9 characters. Got: %r", obj_name
             )
-            raise ValueError("name must be a string of 1 to 9 characters.")
+            raise ValueError("Object name must be a string of 1 to 9 characters.")
+        # Pad object name to 9 characters for the frame
+        obj_name_padded = obj_name.ljust(9)
 
+        # Build info field
         info = (
-            f";{obj_name}".ljust(10)
-            + f"*{time_dhm}{lat_dmm}{symbol_id}{long_dmm}{symbol_code}{comment}"
+            f";{obj_name_padded}*{time_dhm}{lat_dmm}{symbol_id}{long_dmm}{symbol_code}{comment}"
         )
         try:
             frame = Frame.ui(
-                destination=self.APRS_SW_VERSION,
+                destination=self.APRS_SW_VERSION, # Typically APRS software version or generic ID
                 source=mycall,
                 path=path,
                 info=info.encode("utf-8"),
@@ -490,7 +497,7 @@ class Aprs:
         time_dhm: Optional[str] = None,
     ) -> None:
         """
-        Send an APRS position report.
+        Sends an APRS position report.
 
         Args:
             mycall: My callsign (3-6 uppercase alphanumeric characters, then '-', then 1-2 digits, max 9 chars).
@@ -510,78 +517,14 @@ class Aprs:
             logging.error("Cannot send position: KISS protocol not initialized.")
             raise AprsError("KISS protocol not initialized.")
 
-        # Validate mycall (same as other callsigns: 3-6 uppercase alphanumeric, dash, 1-2 digits, max 9 chars)
-        callsign_pattern = re.compile(r"^[A-Z0-9]{3,6}-\d{1,2}$")
-        if (
-            not isinstance(mycall, str)
-            or not callsign_pattern.fullmatch(mycall)
-            or len(mycall) > 9
-        ):
-            logging.error(
-                "mycall must be 3-6 uppercase alphanumeric characters, a dash, then 1-2 digits (max 9 chars). Got: %r",
-                mycall
-            )
-            raise ValueError(
-                "mycall must be 3-6 uppercase alphanumeric characters, a dash, then 1-2 digits (max 9 chars)."
-            )
-
-        # Validate path
-        if not isinstance(path, list) or not all(isinstance(p, str) and p for p in path):
-            logging.error("path must be a list of non-empty strings. Got: %r", path)
-            raise ValueError("path must be a list of non-empty strings.")
-
-        # Validate lat_dmm (must be 7 digits + N/S, e.g., '5132.07N')
-        if (
-            not isinstance(lat_dmm, str)
-            or len(lat_dmm) != 8
-            or not lat_dmm[:7].replace(".", "", 1).isdigit()
-            or lat_dmm[-1] not in "NS"
-        ):
-            logging.error(
-                "lat_dmm must be 7 digits (with optional dot) followed by N or S. Got: %r", lat_dmm
-            )
-            raise ValueError(
-                "lat_dmm must be 7 digits (with optional dot) followed by N or S (e.g., '5132.07N')."
-            )
-
-        # Validate long_dmm
-        if (
-            not isinstance(long_dmm, str)
-            or len(long_dmm) < 8
-            or not long_dmm[:-1].replace(".", "", 1).isdigit()
-            or long_dmm[-1] not in "EW"
-        ):
-            logging.error("long_dmm must be in DMM format ending with E or W. Got: %r", long_dmm)
-            raise ValueError("long_dmm must be in DMM format ending with E or W.")
-
-        # Validate symbol_id
-        if not isinstance(symbol_id, str) or len(symbol_id) != 1:
-            logging.error("symbol_id must be a single character. Got: %r", symbol_id)
-            raise ValueError("symbol_id must be a single character.")
-
-        # Validate symbol_code
-        if not isinstance(symbol_code, str) or len(symbol_code) != 1:
-            logging.error("symbol_code must be a single character. Got: %r", symbol_code)
-            raise ValueError("symbol_code must be a single character.")
-
-        # Validate comment
-        if not isinstance(comment, str) or not (0 <= len(comment) <= 43):
-            logging.error(
-                "comment must be a string of 0 to 43 characters. Got length: %d",
-                len(comment) if isinstance(comment, str) else -1,
-            )
-            raise ValueError("comment must be a string of 0 to 43 characters.")
-
-        # Validate time_dhm if provided
-        if time_dhm is not None:
-            if (
-                not isinstance(time_dhm, str)
-                or len(time_dhm) != 7
-                or not time_dhm[:6].isdigit()
-                or time_dhm[-1] != "z"
-            ):
-                logging.error("time_dhm must be a 6-digit string followed by 'z'. Got: %r", time_dhm)
-                raise ValueError("time_dhm must be a 6-digit string followed by 'z' (e.g., '011234z').")
+        self._validate_callsign(mycall, "mycall")
+        self._validate_path(path)
+        self._validate_lat_dmm(lat_dmm)
+        self._validate_long_dmm(long_dmm)
+        self._validate_symbol(symbol_id, "symbol_id")
+        self._validate_symbol(symbol_code, "symbol_code")
+        self._validate_comment(comment)
+        self._validate_time_dhm(time_dhm, required=False)
 
         # Build info field (with or without time)
         if time_dhm:
@@ -600,10 +543,12 @@ class Aprs:
                 info=info.encode("utf-8"),
             )
             self.kiss_protocol.write(frame)
-            logging.info(f"Sent APRS position: {info}")
+            logging.info(
+                "Sent APRS position report from %s: %s", mycall, info
+            )
         except Exception as e:
-            logging.error(f"Failed to send APRS position: {e}")
-            raise AprsError(f"Failed to send APRS position: {e}")
+            logging.error("Failed to send APRS position report: %s", e)
+            raise AprsError(f"Failed to send APRS position report: {e}") from e
 
     def send_status_report(
         self,
@@ -638,47 +583,25 @@ class Aprs:
             logging.error("Cannot send status: KISS protocol not initialized.")
             raise AprsError("KISS protocol not initialized.")
 
-        # Validate mycall
-        callsign_pattern = re.compile(r"^[A-Z0-9]{3,6}-\d{1,2}$")
-        if (
-            not isinstance(mycall, str)
-            or not callsign_pattern.fullmatch(mycall)
-            or len(mycall) > 9
-        ):
-            logging.error(
-                "mycall must be 3-6 uppercase alphanumeric characters, a dash, then 1-2 digits (max 9 chars). Got: %r",
-                mycall
-            )
-            raise ValueError(
-                "mycall must be 3-6 uppercase alphanumeric characters, a dash, then 1-2 digits (max 9 chars)."
-            )
-
-        # Validate path
-        if not isinstance(path, list) or not all(isinstance(p, str) and p for p in path):
-            logging.error("path must be a list of non-empty strings. Got: %r", path)
-            raise ValueError("path must be a list of non-empty strings.")
-
-        # Validate time_dhm if provided
-        if time_dhm is not None:
-            if (
-                not isinstance(time_dhm, str)
-                or len(time_dhm) != 7
-                or not time_dhm[:6].isdigit()
-                or time_dhm[-1] != "z"
-            ):
-                logging.error("time_dhm must be a 6-digit string followed by 'z'. Got: %r", time_dhm)
-                raise ValueError("time_dhm must be a 6-digit string followed by 'z' (e.g., '092345z').")
+        self._validate_callsign(mycall, "mycall")
+        self._validate_path(path)
+        self._validate_time_dhm(time_dhm, required=False)
 
         # Validate status text
-        if not isinstance(status, str):
-            raise ValueError("status must be a string.")
-        if "|" in status or "~" in status:
-            raise ValueError("status text may not contain '|' or '~'.")
-        max_len = 55 if time_dhm else 62
-        if not (1 <= len(status) <= max_len):
-            raise ValueError(
-                f"status must be 1 to {max_len} characters (got {len(status)})."
+        max_status_len = 55 if time_dhm else 62
+        if not isinstance(status, str) or not (1 <= len(status) <= max_status_len):
+            logging.error(
+                "status must be a string of 1 to %d characters. Got length: %d",
+                max_status_len,
+                len(status) if isinstance(status, str) else -1,
             )
+            raise ValueError(
+                f"status must be a string of 1 to {max_status_len} characters."
+            )
+        if "|" in status or "~" in status:
+            logging.error("status text cannot contain '|' or '~'. Got: %r", status)
+            raise ValueError("status text cannot contain '|' or '~'.")
+
 
         # Build info field
         if time_dhm:
@@ -694,7 +617,7 @@ class Aprs:
                 info=info.encode("utf-8"),
             )
             self.kiss_protocol.write(frame)
-            logging.info(f"Sent APRS status report: {info}")
+            logging.info("Sent APRS status report from %s: %s", mycall, info)
         except Exception as e:
-            logging.error(f"Failed to send APRS status report: {e}")
-            raise AprsError(f"Failed to send APRS status report: {e}")
+            logging.error("Failed to send APRS status report: %s", e)
+            raise AprsError(f"Failed to send APRS status report: {e}") from e

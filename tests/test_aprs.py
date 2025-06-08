@@ -706,5 +706,59 @@ class TestAprs(unittest.TestCase):
                 status="Test"
             )
 
+    def test_send_my_message_no_ack_invalid_recipient(self):
+        self.aprs.initialized = True
+        with self.assertRaises(ValueError):
+            self.aprs.send_my_message_no_ack(
+                mycall="CALL-10",
+                path=["WIDE1-1"],
+                recipient="BADRECIP",
+                message="Hello"
+            )
+
+    def test_send_my_message_no_ack_invalid_path_type(self):
+        self.aprs.initialized = True
+        with self.assertRaises(ValueError):
+            self.aprs.send_my_message_no_ack(
+                mycall="CALL-11",
+                path="notalist",
+                recipient="DEST-11",
+                message="Hello"
+            )
+
+    def test_send_my_message_no_ack_invalid_message_type(self):
+        self.aprs.initialized = True
+        with self.assertRaises(ValueError):
+            self.aprs.send_my_message_no_ack(
+                mycall="CALL-12",
+                path=["WIDE1-1"],
+                recipient="DEST-12",
+                message=None  # type: ignore
+            )
+
+    def test_send_my_message_no_ack_message_too_long(self):
+        self.aprs.initialized = True
+        with self.assertRaises(ValueError):
+            self.aprs.send_my_message_no_ack(
+                mycall="CALL-13",
+                path=["WIDE1-1"],
+                recipient="DEST-13",
+                message="X" * 68
+            )
+
+    def test_send_my_message_no_ack_message_min_length(self):
+        proto = DummyKissProtocol()
+        self.aprs.kiss_protocol = proto
+        self.aprs.initialized = True
+        self.aprs.send_my_message_no_ack(
+            mycall="CALL-14",
+            path=["WIDE1-1"],
+            recipient="DEST-14",
+            message="A"
+        )
+        self.assertTrue(proto.written_frames)
+        frame = proto.written_frames[0]
+        self.assertIn(b"A", frame.info)
+
 if __name__ == "__main__":
     unittest.main()
