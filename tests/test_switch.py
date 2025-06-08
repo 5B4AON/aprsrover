@@ -2,6 +2,8 @@ import sys
 import os
 import unittest
 from typing import Any, Optional, List, Callable
+import time
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
 from aprsrover.switch import Switch, SwitchError, SwitchEvent, GPIOInterface, SwitchObserver
@@ -11,14 +13,16 @@ class DummyGPIO(GPIOInterface):
     IN = "IN"
     OUT = "OUT"
     PUD_UP = "PUD_UP"
+    BOTH = 3
 
-    def __init__(self) -> None:
+    def __init__(self, support_event: bool = True) -> None:
         self.mode = None
         self.pin_modes: dict[int, tuple[Any, Optional[Any]]] = {}
         self.pin_values: dict[int, int] = {}
         self.cleanup_calls: List[Optional[int]] = []
         self.output_calls: List[tuple[int, int]] = []
         self.event_detected: dict[int, Callable] = {}
+        self.support_event = support_event
 
     def setmode(self, mode: Any) -> None:
         self.mode = mode
@@ -41,11 +45,18 @@ class DummyGPIO(GPIOInterface):
         self.cleanup_calls.append(pin)
 
     def add_event_detect(self, pin: int, edge: Any, callback: Any, bouncetime: int = ...) -> None:
+        if not self.support_event:
+            raise NotImplementedError("Event detection not supported")
         self.event_detected[pin] = callback
 
     def remove_event_detect(self, pin: int) -> None:
         if pin in self.event_detected:
             del self.event_detected[pin]
+
+    def simulate_input(self, pin: int, value: int) -> None:
+        self.pin_values[pin] = value
+        if pin in self.event_detected:
+            self.event_detected[pin](pin)
 
 class TestSwitch(unittest.TestCase):
     def setUp(self) -> None:
@@ -106,15 +117,28 @@ class TestSwitch(unittest.TestCase):
         sw.set_state(False)
         self.assertFalse(events[-1].state)
 
-    def test_observer_notified_on_in_state_change(self) -> None:
-        import time
-        sw = Switch(pin=7, direction="IN", gpio=self.gpio, debounce_ms=5)
+    def test_event_detection_used_in_start_monitoring(self) -> None:
+        gpio = DummyGPIO(support_event=True)
+        sw = Switch(pin=20, direction="IN", gpio=gpio)
         events: List[SwitchEvent] = []
         sw.add_observer(lambda e: events.append(e))
         sw.start_monitoring()
-        self.gpio.pin_values[7] = 0  # ON
+        self.assertIn(20, gpio.event_detected or {})  # <-- Move this before stop_monitoring
+        gpio.simulate_input(20, 0)
+        gpio.simulate_input(20, 1)
+        sw.stop_monitoring()
+        self.assertTrue(any(e.state is True for e in events))
+        self.assertTrue(any(e.state is False for e in events))
+
+    def test_polling_fallback_in_start_monitoring(self) -> None:
+        gpio = DummyGPIO(support_event=False)
+        sw = Switch(pin=21, direction="IN", gpio=gpio, debounce_ms=5)
+        events: List[SwitchEvent] = []
+        sw.add_observer(lambda e: events.append(e))
+        sw.start_monitoring()
+        gpio.pin_values[21] = 0
         time.sleep(0.02)
-        self.gpio.pin_values[7] = 1  # OFF
+        gpio.pin_values[21] = 1
         time.sleep(0.02)
         sw.stop_monitoring()
         self.assertTrue(any(e.state is True for e in events))
@@ -146,14 +170,16 @@ class TestSwitch(unittest.TestCase):
         # Should not raise
         sw.set_state(True)
 
-    def test_cleanup_calls_gpio_cleanup(self) -> None:
-        sw = Switch(pin=12, direction="IN", gpio=self.gpio)
+    def test_cleanup_calls_gpio_cleanup_and_remove_event(self) -> None:
+        gpio = DummyGPIO(support_event=True)
+        sw = Switch(pin=12, direction="IN", gpio=gpio)
+        sw.start_monitoring()
         sw.cleanup()
-        self.assertEqual(self.gpio.cleanup_calls[-1], 12)
+        self.assertEqual(gpio.cleanup_calls[-1], 12)
+        self.assertNotIn(12, gpio.event_detected)
 
     def test_monitor_thread_safe_start_stop(self) -> None:
-        import time
-        sw = Switch(pin=13, direction="IN", gpio=self.gpio, debounce_ms=5)
+        sw = Switch(pin=13, direction="IN", gpio=DummyGPIO(support_event=False), debounce_ms=5)
         sw.start_monitoring()
         sw.start_monitoring()  # Should be safe to call twice
         time.sleep(0.01)
@@ -186,25 +212,49 @@ class TestSwitch(unittest.TestCase):
         self.gpio.pin_values[16] = 1
         self.assertFalse(sw.get_state())
 
-    def test_async_monitor_notifies_on_change(self) -> None:
+    def test_async_monitor_event_detection(self) -> None:
         import asyncio
-
-        sw = Switch(pin=17, direction="IN", gpio=self.gpio)
+        gpio = DummyGPIO(support_event=True)
+        sw = Switch(pin=17, direction="IN", gpio=gpio)
         events: List[SwitchEvent] = []
         sw.add_observer(lambda e: events.append(e))
 
         async def simulate():
-            self.gpio.pin_values[17] = 1
+            gpio.simulate_input(17, 0)
+            await asyncio.sleep(0.01)
+            gpio.simulate_input(17, 1)
+            await asyncio.sleep(0.01)
+
+        async def run_monitor():
+            await sw.async_monitor()
+            await simulate()
+            await asyncio.sleep(0.02)
+
+        asyncio.run(run_monitor())
+        self.assertTrue(any(e.state is True for e in events))
+        self.assertTrue(any(e.state is False for e in events))
+
+    def test_async_monitor_polling_fallback(self) -> None:
+        import asyncio
+        gpio = DummyGPIO(support_event=False)
+        sw = Switch(pin=18, direction="IN", gpio=gpio)
+        events: List[SwitchEvent] = []
+        sw.add_observer(lambda e: events.append(e))
+
+        # Ensure initial state is OFF (1)
+        gpio.pin_values[18] = 1
+
+        async def simulate():
             await asyncio.sleep(0.03)
-            self.gpio.pin_values[17] = 0
+            gpio.pin_values[18] = 0  # ON
             await asyncio.sleep(0.03)
-            self.gpio.pin_values[17] = 1
+            gpio.pin_values[18] = 1  # OFF
             await asyncio.sleep(0.03)
 
         async def run_monitor():
             task = asyncio.create_task(sw.async_monitor(poll_interval=0.01))
             await simulate()
-            await asyncio.sleep(0.03)
+            await asyncio.sleep(0.05)
             task.cancel()
             try:
                 await task

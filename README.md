@@ -461,7 +461,10 @@ aprs.kiss_protocol = DummyKISS()  # For direct calls in tests
 - Supports both input ("IN") and output ("OUT") switch configurations (set at initialization)
 - Provides methods to check the status of a switch (`get_state`) and to set the state for output switches (`set_state`)
 - Observer pattern: register callback functions to be notified when a switch changes state (works for both input and output switches)
-- Supports both synchronous and asynchronous monitoring of switch state changes
+- **Supports both synchronous (`start_monitoring`) and asynchronous (`async_monitor`) monitoring of input switch state changes**
+    - **Uses event detection callbacks if supported by the GPIO backend (e.g., RPi.GPIO) for efficient, immediate notification of input changes**
+    - **If event detection is not available, falls back to polling (threaded for sync, async loop for async)**
+    - **Event detection is automatically cleaned up when you call `stop_monitoring()` or `cleanup()`**
 - Input validation for pin numbers, direction, and observer registration
 - Abstracts GPIO access for easy testing and mocking (dependency injection via `gpio` parameter)
 - Custom exception: `SwitchError` for granular error handling
@@ -472,14 +475,31 @@ aprs.kiss_protocol = DummyKISS()  # For direct calls in tests
 from aprsrover.switch import Switch, SwitchError, SwitchEvent
 import time
 
-# Example: Using a GPIO pin as an input switch
+# Example: Using a GPIO pin as an input switch (synchronous monitoring)
 switch_in = Switch(pin=17, direction="IN")
 def on_switch_change(event: SwitchEvent) -> None:
     print(f"Switch {event.pin} changed to {'ON' if event.state else 'OFF'}")
 switch_in.add_observer(on_switch_change)
-switch_in.start_monitoring()
+switch_in.start_monitoring()  # Uses event detection if available, otherwise polling in a thread
 time.sleep(5)
 switch_in.stop_monitoring()
+
+# Example: Using a GPIO pin as an input switch (asynchronous monitoring)
+import asyncio
+
+async def main():
+    switch_in = Switch(pin=17, direction="IN")
+    switch_in.add_observer(on_switch_change)
+    # Uses event detection if available, otherwise async polling
+    monitor_task = asyncio.create_task(switch_in.async_monitor())
+    await asyncio.sleep(5)
+    monitor_task.cancel()
+    try:
+        await monitor_task
+    except asyncio.CancelledError:
+        pass
+
+asyncio.run(main())
 
 # Example: Using a GPIO pin as an output switch
 switch_out = Switch(pin=18, direction="OUT")
@@ -514,6 +534,8 @@ print("Dummy switch state:", switch.get_state())
 - For `"OUT"` switches, `set_state()` changes the output and notifies observers if the state changes.
 - For `"IN"` switches, `get_state()` returns the current input state (True for ON, False for OFF).
 - Observers can be registered for both input and output switches and will be notified on state changes.
+- **For input switches, `start_monitoring()` and `async_monitor()` will use event detection callbacks if supported by the GPIO backend (such as RPi.GPIO). If not, they will fall back to polling (threaded for sync, async for async).**
+- **Event detection is automatically removed when you call `stop_monitoring()` or `cleanup()`.**
 - All GPIO access is abstracted for easy mocking in tests; pass a custom `gpio` object for testing.
 - All methods are thread-safe and suitable for use in asynchronous or multi-threaded applications.
 - Requires `RPi.GPIO` on Raspberry Pi hardware; does not attempt to import GPIO on other platforms.

@@ -119,6 +119,7 @@ class Switch:
         self._monitoring = threading.Event()
         self._last_state: Optional[bool] = None
         self._output_state: bool = False  # Only used if direction == "OUT"
+        self._event_detected: bool = False
 
         if self._gpio is None:
             raise SwitchError("RPi.GPIO library not available.")
@@ -137,6 +138,11 @@ class Switch:
                 raise ValueError("direction must be 'IN' or 'OUT'")
         except Exception as exc:
             raise SwitchError(f"Failed to setup GPIO pin {self.pin}: {exc}")
+
+    def _event_callback(self, pin: int) -> None:
+        """Internal callback for GPIO event detection."""
+        state = self.get_state()
+        self._notify_observers(state)
 
     def get_state(self) -> bool:
         """
@@ -207,20 +213,60 @@ class Switch:
 
     def start_monitoring(self) -> None:
         """
-        Starts a background thread to monitor switch state changes and notify observers.
+        Starts monitoring for input state changes using event detection if available,
+        otherwise falls back to polling in a background thread.
 
-        Thread-safe. Call `stop_monitoring()` to stop.
+        This method is synchronous and intended for use in traditional or multi-threaded
+        applications. It will start a background thread to poll the switch state if
+        event detection is not available. Observers are notified on state changes.
+
+        Use `stop_monitoring()` to stop monitoring and clean up resources.
+
+        Raises:
+            SwitchError: If called on a switch not configured as input.
+
+        Example:
+            switch = Switch(pin=17, direction="IN")
+            switch.add_observer(lambda e: print(f"Switch changed: {e.state}"))
+            switch.start_monitoring()
+            # ... later ...
+            switch.stop_monitoring()
         """
+        if self.direction != "IN":
+            raise SwitchError("Monitoring is only supported for input-configured switches.")
+
         if self._monitor_thread and self._monitor_thread.is_alive():
             return
+
+        # Try to use event detection if available
+        if hasattr(self._gpio, "add_event_detect"):
+            try:
+                self._gpio.add_event_detect(
+                    self.pin,
+                    getattr(self._gpio, "BOTH", 3),  # 3 is BOTH for RPi.GPIO
+                    callback=self._event_callback,
+                    bouncetime=self._debounce_ms
+                )
+                self._event_detected = True
+                return
+            except Exception as exc:
+                logging.warning(f"Event detection not available, falling back to polling: {exc}")
+
+        # Fallback: polling
         self._monitoring.set()
         self._monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
         self._monitor_thread.start()
 
     def stop_monitoring(self) -> None:
         """
-        Stops background monitoring.
+        Stops background monitoring or removes event detection.
         """
+        if self._event_detected:
+            try:
+                self._gpio.remove_event_detect(self.pin)
+            except Exception:
+                pass
+            self._event_detected = False
         self._monitoring.clear()
         if self._monitor_thread:
             self._monitor_thread.join(timeout=1)
@@ -239,20 +285,48 @@ class Switch:
         """
         Asynchronously monitors the switch and notifies observers on state changes.
 
+        If event detection is available, this method sets up event callbacks and returns
+        immediately (observers will be notified via callbacks). If event detection is not
+        available, it polls the pin state in an async loop at the specified interval.
+
+        This method is intended for use in asyncio-based applications. It should be
+        awaited or run as an asyncio task.
+
         Args:
-            poll_interval (float): Polling interval in seconds.
+            poll_interval (float): Polling interval in seconds (used only if polling).
+
+        Raises:
+            SwitchError: If called on a switch not configured as input.
 
         Usage example:
             import asyncio
             from aprsrover.switch import Switch
 
             async def main():
-                switch = Switch(pin=17, direction="OUT")
+                switch = Switch(pin=17, direction="IN")
                 switch.add_observer(lambda e: print(f"Switch changed: {e.state}"))
                 await switch.async_monitor()
 
             asyncio.run(main())
         """
+        if self.direction != "IN":
+            raise SwitchError("Async monitoring is only supported for input-configured switches.")
+
+        # Try to use event detection if available
+        if hasattr(self._gpio, "add_event_detect"):
+            try:
+                self._gpio.add_event_detect(
+                    self.pin,
+                    getattr(self._gpio, "BOTH", 3),
+                    callback=self._event_callback,
+                    bouncetime=self._debounce_ms
+                )
+                self._event_detected = True
+                return  # Event detection is now active; no polling needed
+            except Exception as exc:
+                logging.warning(f"Event detection not available, falling back to polling: {exc}")
+
+        # Fallback: polling
         self._last_state = self.get_state()
         import asyncio
         while True:
@@ -266,4 +340,10 @@ class Switch:
         """
         Cleans up GPIO resources for this pin.
         """
+        if self._event_detected:
+            try:
+                self._gpio.remove_event_detect(self.pin)
+            except Exception:
+                pass
+            self._event_detected = False
         self._gpio.cleanup(self.pin)
