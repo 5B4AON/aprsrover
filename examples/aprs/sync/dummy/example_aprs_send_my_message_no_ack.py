@@ -9,6 +9,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 def main() -> None:
     aprs = Aprs(host="localhost", port=8001, kiss=DummyAPRS())
+    aprs.kiss_protocol = DummyAPRS()
     aprs.initialized = True
     aprs.send_my_message_no_ack(
         mycall="N0CALL-1",
