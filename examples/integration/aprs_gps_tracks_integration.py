@@ -6,7 +6,6 @@ This script demonstrates:
 - Handling incoming APRS messages to control rover tracks or report position
 - Sending acknowledgements if requested
 - Using GPS to report current position as an APRS object
-- Using decimal coordinates for calculations and DMM/DHM for APRS transmission
 
 Requirements:
     - KISS TNC accessible (e.g., Direwolf running in KISS mode)
@@ -17,19 +16,30 @@ Run this script from the project root:
     python examples/aprs_gps_tracks_integration.py
 """
 
+import asyncio
 from aprsrover.aprs import Aprs, AprsError
 from aprsrover.gps import GPS, GPSError
-from aprsrover.tracks import Tracks, TracksError
-import asyncio
+from aprsrover.tracks import Tracks, TracksError, PWMControllerInterface
+from aprsrover.hw_info import HWInfo, HWInfoError, HWInfoInterface
 from ax253 import Frame
+import logging
+from examples.dummies.gps import DummyGPS
+from examples.dummies.tracks import DummyPWM
+from examples.dummies.hw_info import DummyHWInfo
+
+logging.basicConfig()
+logging.getLogger().setLevel(logging.DEBUG)
+
 
 CALLSIGN = "5B4AON-9"
 APRS_PATH = ["WIDE1-1"]
 
-aprs = Aprs(host="localhost", port=8001)
-gps = GPS()
-tracks = Tracks()
+aprs = Aprs(host="localhost", port=8002)
+gps = DummyGPS()
 
+dummy_pwm = DummyPWM()
+tracks = Tracks(pwm=dummy_pwm)
+#tracks = Tracks()
 
 def move_callback(frame: Frame) -> None:
     """
@@ -42,8 +52,10 @@ def move_callback(frame: Frame) -> None:
     - Ignore incomplete groups.
     """
     msg = Aprs.get_my_message(CALLSIGN, frame)
+    #print("move_callback:", msg)
     if not msg or not msg.startswith("Mv "):
         return
+    # Only send ack if the message matches the search condition
     aprs.send_ack_if_requested(frame, CALLSIGN, APRS_PATH)
     try:
         parts = msg[3:].strip().split()
@@ -51,8 +63,8 @@ def move_callback(frame: Frame) -> None:
         movements = []
         for i in range(0, len(parts) - 2, 3):
             try:
-                left_speed = float(parts[i])
-                right_speed = float(parts[i + 1])
+                left_speed = int(parts[i])
+                right_speed = int(parts[i + 1])
                 duration = float(parts[i + 2])
                 if duration <= 0 or duration > 10:
                     print(f"Ignoring movement with invalid duration: {duration}")
@@ -79,50 +91,92 @@ def move_callback(frame: Frame) -> None:
             movements = truncated
 
         for left_speed, right_speed, duration in movements:
-            print(f"Moving left track at {left_speed}, right track at {right_speed} for {duration} seconds.")
-            tracks.move(left_speed, right_speed, duration)
+            #print(f"Moving left track at {left_speed}, right track at {right_speed} for {duration} seconds.")
+            tracks.move(left_speed, right_speed, duration, 100, stop_at_end=False)
+        tracks.move(0, 0, 1, 100)
     except TracksError as te:
         print(f"Tracks error: {te}")
     except Exception as e:
         print(f"Move callback error: {e}")
 
-def pos_callback(frame: Frame) -> None:
+def pos_callback(frame: Frame):
     """
     Callback for position requests.
-    Expects message 'Pos', responds with an APRS object containing current position.
+    Expects message '?APRSS', responds with an APRS position message with a timestamp.
     """
-    msg = Aprs.get_my_message(CALLSIGN, frame)
-    if msg != "Pos":
+    msg = Aprs.get_my_message(CALLSIGN, frame).strip()
+    #print("pos_callback:", msg)
+    if msg != "?APRSP":
         return
-    aprs.send_ack_if_requested(frame, CALLSIGN)
+    # Only send ack if the message matches the search condition
+    aprs.send_ack_if_requested(frame, CALLSIGN, APRS_PATH)
     try:
-        gps_data = gps.get_gps_data_dmm()
+        # APRS DMM: 3509.57N, 03318.59E, 011500z, 0
+        gps_data = gps.get_position()
         if gps_data is None:
             print("Failed to retrieve GPS data for position report.")
             return
         lat, lon, tm, _ = gps_data
         print(f"Sending position object: {lat}, {lon}, {tm}")
-        aprs.send_object_report(
+        aprs.send_position_report(
             mycall=CALLSIGN,
             path=APRS_PATH,
             time_dhm=tm,
             lat_dmm=lat,
             long_dmm=lon,
             symbol_id="/",
-            symbol_code="O",
-            comment="here I am"
+            symbol_code=">",
+            comment="ROVER",
         )
     except (GPSError, AprsError) as e:
         print(f"Position callback error: {e}")
 
+
+
+def status_callback(frame: Frame):
+    """
+    Callback for status requests.
+    Expects message '?APRSS', responds with an APRS status message.
+    """
+    msg = Aprs.get_my_message(CALLSIGN, frame).strip()
+    #print("pos_callback:", msg)
+    if msg != "?APRSS":
+        return
+    # Only send ack if the message matches the search condition
+    aprs.send_ack_if_requested(frame, CALLSIGN, APRS_PATH)
+    try:
+        gps_data = gps.get_position()
+        if gps_data is None:
+            print("Failed to retrieve GPS data for position report.")
+            return
+        lat, lon, tm, _ = gps_data
+        hw = HWInfo(backend=DummyHWInfo())  # Uses dummy hardware info
+        cpu_temp = hw.get_cpu_temp() + "°C"  # e.g., "48.2°C"
+        cpu_use = hw.get_cpu_usage() + "%"  # e.g., "12.5%"
+        ram_use = hw.get_ram_usage() + "%"  # e.g., "42.0%"
+        # Format uptime as 01h 23m 45s
+        h, m, s = hw.get_uptime().split(":")
+        uptime = f"{h}h {m}m {s}s"  # e.g., "01h 23m 45s"
+        print(f"Sending status")
+        aprs.send_status_report(
+            mycall=CALLSIGN,
+            path=APRS_PATH,
+            time_dhm=tm,
+            status=f"UP: {uptime}, CPU: {cpu_use} {cpu_temp}, RAM: {ram_use}",
+        )
+    except (GPSError, AprsError) as e:
+        print(f"Status callback error: {e}")
+
+
 async def main() -> None:
     try:
         await aprs.connect()
+        #gps.connect()
         aprs.register_observer(CALLSIGN, move_callback)
         aprs.register_observer(CALLSIGN, pos_callback)
+        aprs.register_observer(CALLSIGN, status_callback)
         print(f"APRS observer registered for {CALLSIGN}. Waiting for messages (Ctrl+C to exit)...")
-        while True:
-            await asyncio.sleep(1)
+        await aprs.run()
     except AprsError as ae:
         print(f"APRS error: {ae}")
 
