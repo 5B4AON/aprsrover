@@ -7,4 +7,4 @@ from .aprs import DummyAPRS
 from .gps import DummyGPS
 from .hw_info import DummyHWInfo
 from .switch import DummySwitch
-from .tracks import DummyTracks
+from .tracks import DummyPWM
