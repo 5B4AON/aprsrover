@@ -9,10 +9,11 @@ logging.basicConfig(level=logging.DEBUG)
 
 def main() -> None:
     hw = HWInfo(backend=DummyHWInfo())
-    print(f"CPU Temp: {hw.get_cpu_temp()} °C")
-    print(f"CPU Usage: {hw.get_cpu_usage()} %")
-    print(f"RAM Usage: {hw.get_ram_usage()} %")
-    print(f"Uptime: {hw.get_uptime()}")
+    print("Dummy CPU Temp:", hw.get_cpu_temp() + "°C")
+    print("Dummy CPU Usage:", hw.get_cpu_usage() + "%")
+    print("Dummy RAM Usage:", hw.get_ram_usage() + "%")
+    h, m, s = hw.get_uptime().split(":")
+    print(f"Dummy Uptime: {h}h {m}m {s}s")
 
 if __name__ == "__main__":
     main()

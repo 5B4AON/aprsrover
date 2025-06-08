@@ -7,11 +7,11 @@ class DummyGPS(GPSDInterface):
     """
     def get_current(self):
         class Packet:
-            lat = 51.5
-            lon = -0.1
-            time = "2024-01-01T12:00:00.000Z"
+            lat = 35.15954748
+            lon = 33.30987698
+            time = "2025-01-01T12:00:00.000Z"
             mode = 3
-            track = 123.4
+            track = 180
         return Packet()
 
 # For examples, you can use: gps = GPS(gpsd=DummyGPS())
