@@ -466,6 +466,7 @@ class Aprs:
                     # Only take up to the next space or end of string
                     ack = ack.split()[0] if ack else ""
                     ack_info = f":{frame.source}".ljust(10) + f":ack{ack}"
+                    logging.debug(f"Sending acknowledgment: {ack_info}")
                     self.kiss_protocol.write(
                         Frame.ui(
                             destination="APDR16",

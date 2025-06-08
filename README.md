@@ -23,6 +23,10 @@ Designed for easy integration, asynchronous operation, and high testability with
     - [Sending APRS Position Reports](#sending-aprs-position-reports)
 - [Switch Features](#switch-features)
   - [Switch Usage](#switch-usage)
+- [HW Info Features](#hw-info-features)
+  - [HW Info Usage](#hw-info-usage)
+    - [Using the Real Raspberry Pi Backend](#using-the-real-raspberry-pi-backend)
+    - [Dummy HW Info Example](#dummy-hw-info-example)
 - [Examples](#examples)
 - [Testing](#testing)
 - [Building the package](#building-the-package)
@@ -37,6 +41,7 @@ Designed for easy integration, asynchronous operation, and high testability with
 - **Tracks**: Control rover tracks via PWM, with speed/direction APIs and input validation.
 - **APRS**: Interface with KISS TNC, send/receive APRS frames, observer pattern for async frame handling.
 - **Switch**: Manage GPIO-connected switches (input/output), observer pattern for state changes, async/sync monitoring.
+- **HW Info**: Query CPU temperature, CPU usage, RAM usage, and system uptime with dependency injection for testability.
 - **Testing**: All hardware access is abstracted for easy mocking; high test coverage and CI-friendly.
 - **Documentation**: Comprehensive usage examples and API documentation.
 
@@ -515,6 +520,60 @@ print("Dummy switch state:", switch.get_state())
 
 ---
 
+## HW Info Features
+
+- Query Raspberry Pi system information: CPU temperature, CPU usage, RAM usage, and system uptime.
+- **Dependency injection:** Easily test or simulate hardware info by passing a dummy/mock object implementing `HWInfoInterface`.
+- Input validation and robust error handling with custom exception: `HWInfoError`.
+- All hardware access is abstracted for easy mocking in tests.
+- Fully modular, testable, and suitable for import in other scripts or applications.
+
+## HW Info Usage
+
+### Using the Real Raspberry Pi Backend
+
+```python
+from aprsrover.hw_info import HWInfo, HWInfoError
+
+try:
+    hw = HWInfo()  # Uses real hardware info if running on Raspberry Pi
+    print("CPU Temp:", hw.get_cpu_temp() + "°C")      # e.g., "48.2°C"
+    print("CPU Usage:", hw.get_cpu_usage() + "%")     # e.g., "12.5%"
+    print("RAM Usage:", hw.get_ram_usage() + "%")     # e.g., "42.0%"
+    # Format uptime as 01h 23m 45s
+    h, m, s = hw.get_uptime().split(":")
+    print(f"Uptime: {h}h {m}m {s}s")                 # e.g., "01h 23m 45s"
+except HWInfoError as e:
+    print(f"Hardware info error: {e}")
+```
+
+### Dummy HW Info Example
+
+```python
+from aprsrover.hw_info import HWInfo, HWInfoInterface
+
+class DummyHWInfo(HWInfoInterface):
+    def get_cpu_temp(self) -> str: return "42.0"
+    def get_cpu_usage(self) -> str: return "10"
+    def get_ram_usage(self) -> str: return "20"
+    def get_uptime(self) -> str: return "00:42:00"
+
+hw = HWInfo(backend=DummyHWInfo())
+print("Dummy CPU Temp:", hw.get_cpu_temp() + "°C")
+print("Dummy CPU Usage:", hw.get_cpu_usage() + "%")
+print("Dummy RAM Usage:", hw.get_ram_usage() + "%")
+h, m, s = hw.get_uptime().split(":")
+print(f"Dummy Uptime: {h}h {m}m {s}s")
+```
+
+**Note:**  
+- If you attempt to use `HWInfo()` on a non-Raspberry Pi platform without injecting a backend, a `HWInfoError` will be raised.
+- All methods return string representations of the values for easy display and logging.
+- All hardware/system access is abstracted for easy mocking in tests.
+- All exceptions related to hardware access are raised as `HWInfoError`.
+
+---
+
 ## Examples
 
 See the `examples/` directory for real-world usage scenarios, including:
@@ -527,6 +586,7 @@ See the `examples/` directory for real-world usage scenarios, including:
 - `tracks.py`: Utility module for controlling rover track motion via PWM
 - `aprs.py`: APRS utility module for frame transmission/reception
 - `switch.py`: GPIO switch utility module
+- `hw_info.py`: Hardware information utility module
 - `examples/`: Example scripts for integration and real-world usage
 - `tests/`: Unit tests
 
