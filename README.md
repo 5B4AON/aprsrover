@@ -29,7 +29,7 @@ A modular Python library for controlling a rover using APRS, GPS, GPIO switches,
 ---
 
 ## Examples
-See the [examples/](../examples/README.md) directory for a wide range of real-world and modular usage scenarios, including:
+See the [examples/](examples/README.md) directory for a wide range of real-world and modular usage scenarios, including:
 - Integration of APRS, GPS, Tracks, Switch, and HW Info modules for remote rover control, telemetry, and system monitoring.
 - Synchronous and asynchronous movement and turning with Tracks, including acceleration smoothing, interruption, and dummy/mock PWM usage.
 - Registering APRS message callbacks to control rover movement, respond with position or status, and handle acknowledgements.
