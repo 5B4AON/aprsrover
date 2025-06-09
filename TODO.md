@@ -23,8 +23,5 @@
 
 ### Input modules
 
-- **ultra.py**  
-    For reading vallues from an ultrasonic distance sensor
-
 - **camera.py**  
     Controlling the RPi camera to take pictures.
