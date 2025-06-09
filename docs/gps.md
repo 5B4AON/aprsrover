@@ -49,4 +49,4 @@ print("Dummy DMM:", lat_dmm, lon_dmm, tm, bearing)
 
 ## Notes
 - All hardware access is abstracted for easy mocking in tests.
-- See the main README and examples for more advanced usage.
+- See the [examples/README.md](../examples/README.md) for more advanced usage scenarios.

@@ -38,6 +38,3 @@ Auto-format code with Ruff:
 ruff format src/
 ```
 
-## Notes
-- All hardware access is abstracted for easy mocking in tests.
-- See the main README and examples for more advanced usage.

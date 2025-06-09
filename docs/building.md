@@ -21,5 +21,4 @@ Install your built package locally:
 pip install dist/aprsrover-0.1.0-py3-none-any.whl
 ```
 
-## Notes
-- See the main README and examples for more advanced usage.
+

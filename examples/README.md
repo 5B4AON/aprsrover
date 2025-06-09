@@ -49,4 +49,4 @@ Integration examples demonstrate how to combine multiple modules, e.g., sending 
 
 ---
 
-For more details, see the docstrings in each example and the main project README.
+For more details, see the docstrings in each example.
