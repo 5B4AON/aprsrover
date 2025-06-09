@@ -1,0 +1,30 @@
+# Planned Features
+
+## HW control modules
+
+### Output modules
+
+- **servo.py**  
+    For controlling simple servo motor position like a turret mechanism.
+
+- **motor.py**  
+    For controlling the speed of DC motors.
+
+- **neopixel.py**  
+    For controlling NeoPixel LED lights.
+
+- **oled.py**  
+    For controlling OLED matrix displays.  
+    *https://github.com/rm-hull/luma.oled*
+
+- **lcd.py**  
+    For controlling LCD displays.  
+    *https://github.com/rm-hull/luma.lcd*
+
+### Input modules
+
+- **ultra.py**  
+    For reading vallues from an ultrasonic distance sensor
+
+- **camera.py**  
+    Controlling the RPi camera to take pictures.
