@@ -1,6 +1,6 @@
 # APRS Rover Library
 
-A modular Python library for controlling a rover using APRS, GPS, GPIO switches, and PWM tracks. Designed for easy integration, asynchronous operation, and high testability with abstracted hardware access.
+A modular Python library for controlling a rover using APRS, GPS, GPIO switches, PWM tracks, and ultrasonic distance sensors. Designed for easy integration, asynchronous operation, and high testability with abstracted hardware access.
 
 ---
 
@@ -11,6 +11,7 @@ A modular Python library for controlling a rover using APRS, GPS, GPIO switches,
 - **APRS**: Interface with KISS TNC, send/receive APRS frames, observer pattern for async frame handling.
 - **Switch**: Manage GPIO-connected switches (input/output), observer pattern for state changes, async/sync monitoring.
 - **HW Info**: Query CPU temperature, CPU usage, RAM usage, and system uptime with dependency injection for testability.
+- **UltraSonic**: Interface with ultrasonic distance sensors (e.g., HC-SR04), supporting sync/async measurement, observer pattern, and dummy/test backends.
 - **Testing**: All hardware access is abstracted for easy mocking; high test coverage and CI-friendly.
 - **Documentation**: Comprehensive usage examples and API documentation.
 
@@ -23,6 +24,7 @@ A modular Python library for controlling a rover using APRS, GPS, GPIO switches,
 - [APRS Module](docs/aprs.md)
 - [Switch Module](docs/switch.md)
 - [HW Info Module](docs/hw_info.md)
+- [UltraSonic Module](docs/ultra.md)
 - [Testing Guide](docs/testing.md)
 - [Building the Package](docs/building.md)
 
@@ -30,11 +32,12 @@ A modular Python library for controlling a rover using APRS, GPS, GPIO switches,
 
 ## Examples
 See the [examples/](examples/README.md) directory for a wide range of real-world and modular usage scenarios, including:
-- Integration of APRS, GPS, Tracks, Switch, and HW Info modules for remote rover control, telemetry, and system monitoring.
+- Integration of APRS, GPS, Tracks, Switch, HW Info, and UltraSonic modules for remote rover control, telemetry, and system monitoring.
 - Synchronous and asynchronous movement and turning with Tracks, including acceleration smoothing, interruption, and dummy/mock PWM usage.
+- Synchronous and asynchronous distance measurement with UltraSonic, including observer registration and dummy/mock GPIO usage.
 - Registering APRS message callbacks to control rover movement, respond with position or status, and handle acknowledgements.
-- Demonstrations of dummy/test backends for GPS, PWM, HW Info, APRS, and Switch modules for safe testing without hardware.
-- End-to-end integration scripts combining APRS, GPS, and Tracks for autonomous or remote-controlled rover operation.
+- Demonstrations of dummy/test backends for GPS, PWM, HW Info, APRS, Switch, and UltraSonic modules for safe testing without hardware.
+- End-to-end integration scripts combining APRS, GPS and Tracks.
 - Example scripts organized by feature and by sync/async usage, with clear separation of dummy and real hardware scenarios.
 
 Browse the `examples/` subfolders for focused demonstrations of each module and integration pattern.

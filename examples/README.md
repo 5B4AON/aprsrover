@@ -4,7 +4,7 @@ This directory contains usage examples for the `aprsrover` library, organized by
 
 ## Directory Structure
 
-- `aprs/`, `gps/`, `hw_info/`, `switch/`, `tracks/`: Examples for each individual module.
+- `aprs/`, `gps/`, `hw_info/`, `switch/`, `tracks/`, `ultra/`: Examples for each individual module.
   - `sync/` and `async/`: Synchronous and asynchronous usage examples.
   - `dummy/`: Dummy backend examples.
 - `integration/`: Multi-module integration examples.
@@ -42,6 +42,7 @@ This directory contains usage examples for the `aprsrover` library, organized by
 - **HW Info**: Hardware information (CPU temp, voltage, etc.)
 - **Switch**: Hardware switch/button interface
 - **Tracks**: Track recording and management
+- **UltraSonic**: Ultrasonic distance sensor interface
 
 ## Integration Examples
 
