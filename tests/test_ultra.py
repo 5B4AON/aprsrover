@@ -121,5 +121,32 @@ class TestUltraSonic(unittest.TestCase):
         asyncio.run(run())
         self.assertTrue(called)
 
+    def test_adjust_measurement_based_on_temp_20c(self):
+        """Should return the same value at 20°C (reference temp)."""
+        result = UltraSonic.adjust_measurement_based_on_temp(20.0, 100.0)
+        self.assertAlmostEqual(result, 100.0, places=1)
+
+    def test_adjust_measurement_based_on_temp_higher(self):
+        """Should increase distance at higher temperature."""
+        result = UltraSonic.adjust_measurement_based_on_temp(30.0, 100.0)
+        expected = int((100.0 * (349.1 / 343.0)) * 10) / 10  # flooring
+        # Compare only the integer part
+        self.assertEqual(int(result), int(expected))
+        self.assertGreater(result, 100.0)
+
+    def test_adjust_measurement_based_on_temp_lower(self):
+        """Should decrease distance at lower temperature."""
+        result = UltraSonic.adjust_measurement_based_on_temp(0.0, 100.0)
+        # Speed of sound at 0°C: 331.3
+        expected = int((100.0 * (331.3 / 343.0)) * 10) / 10
+        self.assertAlmostEqual(result, expected, places=1)
+        self.assertLess(result, 100.0)
+
+    def test_adjust_measurement_based_on_temp_flooring(self):
+        """Should always floor to one decimal place."""
+        # This should floor, not round up
+        result = UltraSonic.adjust_measurement_based_on_temp(25.0, 99.98)
+        self.assertTrue(result == int(result * 10) / 10)
+
 if __name__ == "__main__":
     unittest.main()

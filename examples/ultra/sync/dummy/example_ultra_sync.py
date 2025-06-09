@@ -26,7 +26,10 @@ ultra = UltraSonic(trigger_pin=23, echo_pin=24, gpio=dummy_gpio)
 ultra.add_observer(on_distance)
 
 # Takes a single distance measurement and notifies observers once.
-print(f"Measured: {ultra.measure_distance():.1f} cm")
+measured = ultra.measure_distance()
+print(f"Measured distance for 20°C: {measured:.1f} cm")
+adjusted = UltraSonic.adjust_measurement_based_on_temp(25.0, measured)
+print(f"Adjusted distance for 25°C: {adjusted:.1f} cm")
 
 # Starts a background thread that repeatedly measures distance every 0.2 seconds.
 # Each time a new measurement is taken, all registered observers are notified.

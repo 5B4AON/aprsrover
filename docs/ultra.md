@@ -11,6 +11,8 @@ The `ultra` module provides a modular, testable interface for reading values fro
 - Dependency injection for GPIO interface (real or dummy).
 - Raspberry Pi auto-detection for hardware integration.
 - Suitable for use in multi-threaded or async applications.
+- Adjustable measurement based on ambient temperature for accurate results.
+- Dummy backend for deterministic, hardware-free testing.
 
 ## Usage
 
@@ -29,6 +31,10 @@ ultra = UltraSonic(trigger_pin=23, echo_pin=24, gpio=dummy_gpio)
 ultra.add_observer(on_distance)
 dist = ultra.measure_distance()
 print(f"Measured: {dist:.1f} cm")
+
+# Adjust measurement for actual temperature (e.g., 25.0°C)
+adjusted = UltraSonic.adjust_measurement_based_on_temp(25.0, dist)
+print(f"Adjusted for 25.0°C: {adjusted:.1f} cm")
 ```
 
 ### Asynchronous Example

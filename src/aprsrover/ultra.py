@@ -10,6 +10,9 @@ Features:
 - Custom exception handling for GPIO errors.
 - Dependency injection for GPIO interface, allowing testing with mock objects.
 - Detects if running on a Raspberry Pi and uses RPi.GPIO if available.
+- Provides temperature compensation for distance measurements using the
+  `UltraSonic.adjust_measurement_based_on_temp()` class method, which adjusts the measured
+  distance based on the actual ambient temperature for improved accuracy.
 
 Requires:
 - Python 3.10+
@@ -23,6 +26,10 @@ Usage example:
     ultra.add_observer(on_distance)
     dist = ultra.measure_distance()
     print(f"Measured: {dist:.1f} cm")
+
+    # Adjust measurement for actual temperature (e.g., 25.0°C)
+    adjusted = UltraSonic.adjust_measurement_based_on_temp(25.0, dist)
+    print(f"Adjusted for 25.0°C: {adjusted:.1f} cm")
 
     # For async usage, see measure_distance_async() and async_monitor() method docstrings.
 """
@@ -185,7 +192,7 @@ class UltraSonic:
                     raise UltraSonicError("Timeout waiting for echo LOW")
             pulse_end = time.time()
             pulse_duration = pulse_end - pulse_start
-            distance_cm = (pulse_duration * 34300) / 2
+            distance_cm = (pulse_duration * 34300) / 2 # Speed of sound at 20°C is 343m/s
             # Floor to one decimal place (e.g., 99.98 -> 99.9, not 100.0)
             distance_cm = int(distance_cm * 10) / 10
             self._notify_observers(distance_cm)
@@ -281,3 +288,34 @@ class UltraSonic:
         """
         self._gpio.cleanup(self.trigger_pin)
         self._gpio.cleanup(self.echo_pin)
+
+    @classmethod
+    def adjust_measurement_based_on_temp(
+        cls,
+        temperature_c: float,
+        measured_distance_cm: float
+    ) -> float:
+        """
+        Adjust a distance measurement (in cm) for the actual speed of sound at the given temperature.
+
+        Args:
+            temperature_c (float): The current temperature in degrees Celsius (to 1 decimal point).
+            measured_distance_cm (float): The measured distance in cm (to 1 decimal point),
+                assuming speed of sound at 20°C (343 m/s).
+
+        Returns:
+            float: The adjusted distance in cm (floored to 1 decimal point).
+
+        Formula:
+            speed_of_sound = 331.3 + 0.6 * temperature  # m/s
+            adjusted_distance = measured_distance_cm * (speed_of_sound_actual / 343.0)
+
+        Example:
+            adjusted = UltraSonic.adjust_measurement_based_on_temp(25.0, 100.0)
+            print(f"Adjusted distance: {adjusted:.1f} cm")
+        """
+        speed_of_sound_actual = 331.3 + 0.6 * temperature_c
+        adjusted_distance = measured_distance_cm * (speed_of_sound_actual / 343.0)
+        # Floor to one decimal place
+        adjusted_distance = int(adjusted_distance * 10) / 10
+        return adjusted_distance
