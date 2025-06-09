@@ -11,7 +11,7 @@ pip install build
 
 Build the package:
 ```sh
-python -m build
+python3 -m build
 ```
 This will create a `dist/` directory with `.tar.gz` (source) and `.whl` (wheel) files.
 
@@ -21,4 +21,8 @@ Install your built package locally:
 pip install dist/aprsrover-0.1.0-py3-none-any.whl
 ```
 
-
+## Uploading to PyPi
+So that others can install via `pip install aprsrover`ppyt
+```sh
+python3 -m twine upload dist/*
+```
