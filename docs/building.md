@@ -46,7 +46,7 @@ python3 -m twine upload --repository testpypi dist/*
 
 Install from TestPyPi
 ```sh
-pip install -i https://test.pypi.org/simple/ aprsrover
+pip install -i https://test.pypi.org/simple/aprsrover
 ```  
 
 Upload to PyPi  
