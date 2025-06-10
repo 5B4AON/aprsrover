@@ -4,11 +4,9 @@ Demonstrates async movement, turning, acceleration smoothing, and interruption.
 """
 
 import asyncio
-from aprsrover.tracks import Tracks, TracksError
+from aprsrover.tracks import Tracks
+from examples.dummies import DummyPWM
 
-class DummyPWM:
-    def set_pwm(self, channel, on, off):
-        print(f"DummyPWM: set_pwm(channel={channel}, on={on}, off={off})")
 
 async def main() -> None:
     tracks = Tracks(pwm=DummyPWM())

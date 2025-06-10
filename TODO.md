@@ -4,9 +4,6 @@
 
 ### Output modules
 
-- **servo.py**  
-    For controlling simple servo motor position like a turret mechanism.
-
 - **motor.py**  
     For controlling the speed of DC motors.
 

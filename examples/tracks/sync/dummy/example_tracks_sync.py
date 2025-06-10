@@ -3,11 +3,8 @@ Synchronous usage examples for the Tracks class using DummyPWM.
 Demonstrates basic and advanced synchronous movement and turning features.
 """
 
-from aprsrover.tracks import Tracks, TracksError
-
-class DummyPWM:
-    def set_pwm(self, channel, on, off):
-        print(f"DummyPWM: set_pwm(channel={channel}, on={on}, off={off})")
+from aprsrover.tracks import Tracks
+from examples.dummies import DummyPWM
 
 def main() -> None:
     tracks = Tracks(pwm=DummyPWM())

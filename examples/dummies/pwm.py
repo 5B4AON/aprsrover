@@ -1,4 +1,3 @@
-from typing import Any
 from aprsrover.tracks import PWMControllerInterface
 
 class DummyPWM(PWMControllerInterface):

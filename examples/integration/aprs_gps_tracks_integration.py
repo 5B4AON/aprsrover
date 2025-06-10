@@ -23,9 +23,9 @@ from aprsrover.tracks import Tracks, TracksError, PWMControllerInterface
 from aprsrover.hw_info import HWInfo, HWInfoError, HWInfoInterface
 from ax253 import Frame
 import logging
-from examples.dummies.gps import DummyGPS
-from examples.dummies.tracks import DummyPWM
-from examples.dummies.hw_info import DummyHWInfo
+from examples.dummies import DummyGPS
+from examples.dummies import DummyPWM
+from examples.dummies import DummyHWInfo
 
 logging.basicConfig()
 logging.getLogger().setLevel(logging.DEBUG)
