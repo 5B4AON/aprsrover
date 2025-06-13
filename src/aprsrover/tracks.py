@@ -23,6 +23,35 @@ Features:
 - All hardware access is abstracted for easy mocking in tests
 - Custom exception: `TracksError` for granular error handling
 
+Default Parameters and Customization:
+
+The Tracks class exposes several default parameters as class-level constants (prefixed with `DEFAULT_`), such as PWM ranges, channel numbers, and track geometry. When you instantiate a `Tracks` object, these defaults are copied to instance attributes, which you can modify at runtime to suit your hardware setup.
+
+**Default parameters:**
+- `DEFAULT_PWM_FW_MIN`: Minimum PWM value for forward motion (default: 307)
+- `DEFAULT_PWM_FW_MAX`: Maximum PWM value for forward motion (default: 217)
+- `DEFAULT_PWM_STOP`: PWM value for stop (default: 318)
+- `DEFAULT_PWM_REV_MIN`: Minimum PWM value for reverse motion (default: 329)
+- `DEFAULT_PWM_REV_MAX`: Maximum PWM value for reverse motion (default: 419)
+- `DEFAULT_LEFT_CHANNEL`: PWM channel for the left track (default: 8)
+- `DEFAULT_LEFT_CHANNEL_REVERSE`: Whether to reverse the left track direction (default: False)
+- `DEFAULT_RIGHT_CHANNEL`: PWM channel for the right track (default: 9)
+- `DEFAULT_RIGHT_CHANNEL_REVERSE`: Whether to reverse the right track direction (default: True)
+- `DEFAULT_MOVE_DURATION_MAX`: Maximum allowed move duration in seconds (default: 10)
+- `DEFAULT_TRACK_WIDTH_CM`: Distance between tracks in centimeters (default: 15.0)
+
+**Changing parameters at runtime:**
+You can modify any of these parameters on a `Tracks` instance after construction. For example:
+
+    from aprsrover.tracks import Tracks
+
+    tracks = Tracks()
+    tracks.left_channel_reverse = True  # Reverse left track direction
+    tracks.right_channel = 10           # Use channel 10 for right track
+    tracks.track_width_cm = 18.5        # Set track width to 18.5 cm
+
+This allows you to adapt the library to your specific hardware without subclassing or modifying the source.
+
 Requires:
 
 - Python 3.10+
@@ -123,15 +152,17 @@ class Tracks:
     All hardware access is abstracted for easy mocking in tests.
     """
 
-    PWM_FW_MIN: int = 307
-    PWM_FW_MAX: int = 217
-    PWM_STOP: int = 318
-    PWM_REV_MIN: int = 329
-    PWM_REV_MAX: int = 419
-    LEFT_CHANNEL: int = 8
-    RIGHT_CHANNEL: int = 9
-    MOVE_DURATION_MAX: int = 10  # Maximum allowed duration in seconds
-    track_width_cm: float = 15.0  # Distance between tracks in cm (adjust as needed)
+    DEFAULT_PWM_FW_MIN: int = 307
+    DEFAULT_PWM_FW_MAX: int = 217
+    DEFAULT_PWM_STOP: int = 318
+    DEFAULT_PWM_REV_MIN: int = 329
+    DEFAULT_PWM_REV_MAX: int = 419
+    DEFAULT_LEFT_CHANNEL: int = 8
+    DEFAULT_LEFT_CHANNEL_REVERSE: bool = False
+    DEFAULT_RIGHT_CHANNEL: int = 9
+    DEFAULT_RIGHT_CHANNEL_REVERSE: bool = True
+    DEFAULT_MOVE_DURATION_MAX: int = 10  # Maximum allowed duration in seconds
+    DEFAULT_TRACK_WIDTH_CM: float = 15.0  # Distance between tracks in cm (adjust as needed)
 
     def __init__(self, pwm: Optional[PWMControllerInterface] = None) -> None:
         """
@@ -151,6 +182,20 @@ class Tracks:
                 self.pwm = Adafruit_PCA9685.PCA9685()
             except ImportError as e:
                 raise TracksError("Adafruit_PCA9685 not available and no PWM controller provided.") from e
+
+        # Instance variables for configuration, initialized to defaults
+        self.pwm_fw_min: int = self.DEFAULT_PWM_FW_MIN
+        self.pwm_fw_max: int = self.DEFAULT_PWM_FW_MAX
+        self.pwm_stop: int = self.DEFAULT_PWM_STOP
+        self.pwm_rev_min: int = self.DEFAULT_PWM_REV_MIN
+        self.pwm_rev_max: int = self.DEFAULT_PWM_REV_MAX
+        self.left_channel: int = self.DEFAULT_LEFT_CHANNEL
+        self.left_channel_reverse: bool = self.DEFAULT_LEFT_CHANNEL_REVERSE
+        self.right_channel: int = self.DEFAULT_RIGHT_CHANNEL
+        self.right_channel_reverse: bool = self.DEFAULT_RIGHT_CHANNEL_REVERSE
+        self.move_duration_max: int = self.DEFAULT_MOVE_DURATION_MAX
+        self.track_width_cm: float = self.DEFAULT_TRACK_WIDTH_CM
+
         self.initialized = False
         self.init()
 
@@ -170,8 +215,7 @@ class Tracks:
             logging.error("Failed to initialize PWM controller: %s", e)
             raise TracksError(f"Failed to initialize PWM controller: {e}")
 
-    @staticmethod
-    def _sanitize_speed(speed: Union[int, float, str]) -> int:
+    def _sanitize_speed(self, speed: Union[int, float, str]) -> int:
         """
         Convert speed to int and clamp to [-100, 100].
 
@@ -187,8 +231,7 @@ class Tracks:
             x = 0
         return max(-100, min(100, x))
 
-    @staticmethod
-    def get_pwm_fw_speed(speed: Union[int, float, str] = 0) -> int:
+    def get_pwm_fw_speed(self, speed: Union[int, float, str] = 0) -> int:
         """
         Calculate the PWM value for forward speed.
 
@@ -198,17 +241,16 @@ class Tracks:
         Returns:
             int: PWM value for forward motion.
         """
-        x = Tracks._sanitize_speed(speed)
+        x = self._sanitize_speed(speed)
         x = max(0, min(100, x))  # Only allow 0-100 for forward
         if x > 99:
-            return Tracks.PWM_FW_MAX
+            return self.pwm_fw_max
         elif x < 1:
-            return Tracks.PWM_STOP
+            return self.pwm_stop
         else:
-            return Tracks.PWM_FW_MIN - round((x * 90) / 100)
+            return self.pwm_fw_min - round((x * 90) / 100)
 
-    @staticmethod
-    def get_pwm_rev_speed(speed: Union[int, float, str] = 0) -> int:
+    def get_pwm_rev_speed(self, speed: Union[int, float, str] = 0) -> int:
         """
         Calculate the PWM value for reverse speed.
 
@@ -218,14 +260,14 @@ class Tracks:
         Returns:
             int: PWM value for reverse motion.
         """
-        x = Tracks._sanitize_speed(speed)
+        x = self._sanitize_speed(speed)
         x = max(0, min(100, x))  # Only allow 0-100 for reverse
         if x > 99:
-            return Tracks.PWM_REV_MAX
+            return self.pwm_rev_max
         elif x < 1:
-            return Tracks.PWM_STOP
+            return self.pwm_stop
         else:
-            return Tracks.PWM_REV_MIN + round((x * 90) / 100)
+            return self.pwm_rev_min + round((x * 90) / 100)
 
     def get_left_track_speed(self) -> int:
         """
@@ -258,10 +300,17 @@ class Tracks:
         x = self._sanitize_speed(left_track_speed)
         self._left_track_speed = x  # Track the last commanded speed
         try:
-            if x < 0:
-                self.pwm.set_pwm(self.LEFT_CHANNEL, 0, self.get_pwm_rev_speed(-x))
+            if self.left_channel_reverse:
+                # Invert the logic for reversed channel
+                if x < 0:
+                    self.pwm.set_pwm(self.left_channel, 0, self.get_pwm_fw_speed(-x))
+                else:
+                    self.pwm.set_pwm(self.left_channel, 0, self.get_pwm_rev_speed(x))
             else:
-                self.pwm.set_pwm(self.LEFT_CHANNEL, 0, self.get_pwm_fw_speed(x))
+                if x < 0:
+                    self.pwm.set_pwm(self.left_channel, 0, self.get_pwm_rev_speed(-x))
+                else:
+                    self.pwm.set_pwm(self.left_channel, 0, self.get_pwm_fw_speed(x))
         except Exception as e:
             logging.error("Failed to set left track PWM: %s", e)
             raise TracksError(f"Failed to set left track PWM: {e}")
@@ -279,10 +328,17 @@ class Tracks:
         x = self._sanitize_speed(right_track_speed)
         self._right_track_speed = x  # Track the last commanded speed
         try:
-            if x < 0:
-                self.pwm.set_pwm(self.RIGHT_CHANNEL, 0, self.get_pwm_rev_speed(-x))
+            if self.right_channel_reverse:
+                # Invert the logic for reversed channel
+                if x < 0:
+                    self.pwm.set_pwm(self.right_channel, 0, self.get_pwm_fw_speed(-x))
+                else:
+                    self.pwm.set_pwm(self.right_channel, 0, self.get_pwm_rev_speed(x))
             else:
-                self.pwm.set_pwm(self.RIGHT_CHANNEL, 0, self.get_pwm_fw_speed(x))
+                if x < 0:
+                    self.pwm.set_pwm(self.right_channel, 0, self.get_pwm_rev_speed(-x))
+                else:
+                    self.pwm.set_pwm(self.right_channel, 0, self.get_pwm_fw_speed(x))
         except Exception as e:
             logging.error("Failed to set right track PWM: %s", e)
             raise TracksError(f"Failed to set right track PWM: {e}")
@@ -298,14 +354,14 @@ class Tracks:
             float: Validated duration.
 
         Raises:
-            TracksError: If duration is not a positive float or exceeds MOVE_DURATION_MAX.
+            TracksError: If duration is not a positive float or exceeds move_duration_max.
         """
         try:
             d = float(duration)
         except (ValueError, TypeError):
             raise TracksError("Duration must be a number.")
-        if not (0 < d <= self.MOVE_DURATION_MAX):
-            raise TracksError(f"Duration must be >0 and <= {self.MOVE_DURATION_MAX} seconds.")
+        if not (0 < d <= self.move_duration_max):
+            raise TracksError(f"Duration must be >0 and <= {self.move_duration_max} seconds.")
         return round(d, 2)
 
     def move(

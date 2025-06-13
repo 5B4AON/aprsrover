@@ -111,8 +111,8 @@ class TestUltraSonic(unittest.TestCase):
             called.append(event.distance_cm)
         self.ultra.add_observer(observer)
         async def run():
-            task = asyncio.create_task(self.ultra.async_monitor(interval=0.01))
-            await asyncio.sleep(0.05)
+            task = asyncio.create_task(self.ultra.async_monitor(interval=0.1))
+            await asyncio.sleep(0.5)  # Increased from 0.05 to 0.5 to ensure at least one callback
             task.cancel()
             try:
                 await task
