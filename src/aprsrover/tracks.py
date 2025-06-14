@@ -38,7 +38,7 @@ The Tracks class exposes several default parameters as class-level constants (pr
 - `DEFAULT_RIGHT_CHANNEL`: PWM channel for the right track (default: 9)
 - `DEFAULT_RIGHT_CHANNEL_REVERSE`: Whether to reverse the right track direction (default: True)
 - `DEFAULT_MOVE_DURATION_MAX`: Maximum allowed move duration in seconds (default: 10)
-- `DEFAULT_TRACK_WIDTH_CM`: Distance between tracks in centimeters (default: 15.0)
+- `DEFAULT_TRACK_WIDTH_CM`: Distance between tracks in centimeters (default: 19.0)
 
 **Changing parameters at runtime:**
 You can modify any of these parameters on a `Tracks` instance after construction. For example:
@@ -162,7 +162,7 @@ class Tracks:
     DEFAULT_RIGHT_CHANNEL: int = 9
     DEFAULT_RIGHT_CHANNEL_REVERSE: bool = True
     DEFAULT_MOVE_DURATION_MAX: int = 10  # Maximum allowed duration in seconds
-    DEFAULT_TRACK_WIDTH_CM: float = 15.0  # Distance between tracks in cm (adjust as needed)
+    DEFAULT_TRACK_WIDTH_CM: float = 19.0  # Distance between tracks in cm (adjust as needed)
 
     def __init__(self, pwm: Optional[PWMControllerInterface] = None) -> None:
         """
