@@ -4,7 +4,7 @@ This directory contains usage examples for the `aprsrover` library, organized by
 
 ## Directory Structure
 
-- `aprs/`, `gps/`, `hw_info/`, `switch/`, `tracks/`, `ultra/`, `servo/`: Examples for each individual module.
+- `aprs/`, `gps/`, `hw_info/`, `switch/`, `tracks/`, `ultra/`, `servo/`, `neopixel/`: Examples for each individual module.
   - `sync/` and `async/`: Synchronous and asynchronous usage examples.
   - `dummy/`: Dummy backend examples.
 - `integration/`: Multi-module integration examples.
@@ -43,6 +43,7 @@ This directory contains usage examples for the `aprsrover` library, organized by
 - **Switch**: Hardware switch/button interface
 - **Tracks**: Track recording and management
 - **UltraSonic**: Ultrasonic distance sensor interface
+- **Neopixel**: Neopixel LED control interface
 
 ## Integration Examples
 

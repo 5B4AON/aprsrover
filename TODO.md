@@ -7,9 +7,6 @@
 - **motor.py**  
     For controlling the speed of DC motors.
 
-- **neopixel.py**  
-    For controlling NeoPixel LED lights.
-
 - **oled.py**  
     For controlling OLED matrix displays.  
     *https://github.com/rm-hull/luma.oled*
