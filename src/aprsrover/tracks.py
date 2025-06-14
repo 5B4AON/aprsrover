@@ -9,9 +9,11 @@ Features:
 - Methods to set speed and direction for each track independently:
     - `set_left_track_speed()`, `set_right_track_speed()`
     - Query current speed with `get_left_track_speed()`, `get_right_track_speed()`
-- Methods to move both tracks simultaneously for a specified duration:
+- Methods to move both tracks simultaneously for a specified duration or distance:
     - Synchronous: `move()` (supports optional acceleration smoothing and optional stop at end)
     - Asynchronous: `move_async()` (supports optional acceleration smoothing, interruption, and optional stop at end)
+    - You may specify either a duration (in seconds) or a distance (in centimeters) for the move.
+    - If a distance is specified, the duration is automatically calculated using calibration parameters and the current/target speeds.
 - Methods to turn the rover along an arc or in place, specifying speed, turning radius, and direction:
     - Synchronous: `turn()` (supports optional acceleration smoothing and optional stop at end)
     - Asynchronous: `turn_async()` (supports optional acceleration smoothing, interruption, and optional stop at end)
@@ -73,13 +75,14 @@ Usage example:
     tracks.set_left_track_speed(0)       # Stop left track
     tracks.set_right_track_speed(-30)    # Start moving right track reverse at 30% speed
     tracks.set_right_track_speed(0)      # Stop right track
-    tracks.move(60, -60, 2.5)            # Move both tracks for 2.5 seconds (stops at end by default)
+    tracks.move(60, -60, duration=2.5)   # Move both tracks for 2.5 seconds (stops at end by default)
+    tracks.move(80, 80, distance_cm=100) # Move both tracks for 100 cm (duration auto-calculated)
 
     # Synchronous movement with acceleration smoothing (ramps to speed over 1s, holds, then stops)
-    tracks.move(80, 80, 5, accel=80, accel_interval=0.1)
+    tracks.move(80, 80, duration=5, accel=80, accel_interval=0.1)
 
     # Synchronous movement, but do not stop at end (leave tracks running)
-    tracks.move(80, 80, 5, stop_at_end=False)
+    tracks.move(80, 80, duration=5, stop_at_end=False)
 
     # Synchronous turn: spin in place 180 degrees left
     tracks.turn(70, 0, 'left', angle_deg=180)
@@ -93,7 +96,7 @@ Usage example:
     # Asynchronous movement with interruption, speed query, and acceleration smoothing:
     async def main():
         tracks = Tracks()
-        move_task = asyncio.create_task(tracks.move_async(80, 80, 10, accel=40))
+        move_task = asyncio.create_task(tracks.move_async(80, 80, duration=10, accel=40))
         await asyncio.sleep(2)  # Simulate obstacle detection after 2 seconds
         move_task.cancel()      # Interrupt movement (tracks will keep running at last speed)
         try:
@@ -107,6 +110,9 @@ Usage example:
             # Stop the rover
             tracks.stop()
             print("Tracks stopped.")
+
+        # Asynchronous move for a distance
+        await tracks.move_async(80, 80, distance_cm=150, accel=40)
 
         # Asynchronous turn: spin in place 90 degrees left
         await tracks.turn_async(70, 0, 'left', angle_deg=90)
@@ -391,41 +397,181 @@ class Tracks:
         d_clamped = min(max(d, 0.01), self.move_duration_max)
         return round(d_clamped, 2)
 
+    def _move_duration(
+        self,
+        left_speed: int,
+        right_speed: int,
+        distance_cm: float,
+    ) -> float:
+        """
+        Calculate duration needed to move a given distance at specified track speeds.
+
+        Uses calibration: at base_speed, base_duration moves base_distance.
+
+        Args:
+            left_speed: Speed for the left track (-100 to 100).
+            right_speed: Speed for the right track (-100 to 100).
+            distance_cm: Distance to move in centimeters.
+
+        Returns:
+            Duration in seconds, clamped to [0.1, move_duration_max].
+
+        Raises:
+            TracksError: If both speeds are zero or distance is invalid.
+        """
+        if distance_cm <= 0:
+            raise TracksError("distance_cm must be positive.")
+        base_cm_per_sec = self.base_distance / self.base_duration
+        v_l = abs(left_speed) * (base_cm_per_sec / self.base_speed)
+        v_r = abs(right_speed) * (base_cm_per_sec / self.base_speed)
+        avg_cm_per_sec = (v_l + v_r) / 2
+        if avg_cm_per_sec == 0:
+            raise TracksError("Both track speeds are zero; cannot move a distance.")
+        duration = distance_cm / avg_cm_per_sec
+        orig_duration = duration
+        duration = max(0.1, min(float(self.move_duration_max), float(duration)))
+        if duration != orig_duration:
+            logging.warning(
+                f"Move duration {orig_duration:.2f}s clamped to {duration:.2f}s "
+                f"(limits: 0.1s to {self.move_duration_max}s)."
+            )
+        return duration
+
+    def _move_duration_with_accel(
+        self,
+        left_start: int,
+        right_start: int,
+        left_target: int,
+        right_target: int,
+        distance_cm: float,
+        accel: float,
+    ) -> float:
+        """
+        Calculate duration needed to move a given distance with acceleration from start to target speeds.
+
+        Args:
+            left_start: Starting speed for the left track (-100 to 100).
+            right_start: Starting speed for the right track (-100 to 100).
+            left_target: Target speed for the left track (-100 to 100).
+            right_target: Target speed for the right track (-100 to 100).
+            distance_cm: Distance to move in centimeters.
+            accel: Acceleration in percent per second.
+
+        Returns:
+            Duration in seconds, clamped to [0.1, move_duration_max].
+
+        Raises:
+            TracksError: If both speeds are zero or distance/accel is invalid.
+        """
+        if distance_cm <= 0:
+            raise TracksError("distance_cm must be positive.")
+        if accel <= 0:
+            raise TracksError("Acceleration must be positive.")
+
+        base_cm_per_sec = self.base_distance / self.base_duration
+        v0_l = abs(left_start) * (base_cm_per_sec / self.base_speed)
+        v0_r = abs(right_start) * (base_cm_per_sec / self.base_speed)
+        v1_l = abs(left_target) * (base_cm_per_sec / self.base_speed)
+        v1_r = abs(right_target) * (base_cm_per_sec / self.base_speed)
+        v0 = (v0_l + v0_r) / 2
+        v1 = (v1_l + v1_r) / 2
+
+        accel_cms2 = abs(accel) * (base_cm_per_sec / self.base_speed)
+
+        # If acceleration is very high, the ramp is nearly instantaneous.
+        # If the required distance to accelerate is greater than the total distance,
+        # we never reach target speed and must solve for t in s = v0*t + 0.5*a*t^2.
+        if accel_cms2 > 0:
+            t_accel = abs(v1 - v0) / accel_cms2
+            d_accel = (v0 + v1) / 2 * t_accel
+            if d_accel >= distance_cm:
+                # The distance is too short to reach target speed; solve quadratic:
+                # s = v0*t + 0.5*a*t^2  => 0.5*a*t^2 + v0*t - distance_cm = 0
+                a = 0.5 * accel_cms2
+                b = v0
+                c = -distance_cm
+                discriminant = b**2 - 4*a*c
+                if discriminant < 0:
+                    raise TracksError("No real solution for move duration with given parameters.")
+                t = (-b + math.sqrt(discriminant)) / (2*a)
+                duration = t
+            else:
+                # Accelerate to target speed, then continue at constant speed
+                d_const = max(0, distance_cm - d_accel)
+                t_const = d_const / v1 if v1 > 0 else 0
+                duration = t_accel + t_const
+        else:
+            # No acceleration, just use constant speed
+            duration = distance_cm / v1 if v1 > 0 else 0
+
+        orig_duration = duration
+        duration = max(0.1, min(float(self.move_duration_max), float(duration)))
+        if duration != orig_duration:
+            logging.warning(
+                f"Move duration {orig_duration:.2f}s clamped to {duration:.2f}s "
+                f"(limits: 0.1s to {self.move_duration_max}s)."
+            )
+        return duration
+
     def move(
         self,
         left_track_speed: Union[int, float, str],
         right_track_speed: Union[int, float, str],
-        duration: float,
+        duration: Optional[float] = None,
+        distance_cm: Optional[float] = None,
         accel: Optional[float] = None,
         accel_interval: float = 0.05,
         stop_at_end: bool = True,
     ) -> None:
         """
-        Move both tracks at specified speeds for a given duration, with optional acceleration smoothing.
+        Move both tracks at specified speeds for a given duration or distance, with optional acceleration smoothing.
 
-        If `accel` is provided and > 0, the speed ramps smoothly from the current speed to the target speed
-        over the specified duration, using the given acceleration rate and interval. If `accel` is None or <= 0,
-        the speed jumps instantly to the target value.
+        Either `duration` or `distance_cm` must be provided (not both).
 
         Args:
             left_track_speed: Speed for the left track (-100 to 100, zero allowed for stopping).
             right_track_speed: Speed for the right track (-100 to 100, zero allowed for stopping).
             duration: Duration in seconds (positive float, max 2 decimal places, <= MOVE_DURATION_MAX).
+            distance_cm: Distance to travel in centimeters (positive float).
             accel: Optional acceleration in percent per second (e.g., 100 for full speed in 1s).
                    If None or <= 0, jumps instantly to target speed.
             accel_interval: Time step for acceleration smoothing in seconds.
             stop_at_end: If True (default), stop both tracks at the end. If False, leave tracks running.
 
         Raises:
-            TracksError: If duration or acceleration parameters are invalid.
+            TracksError: If neither or both of duration and distance_cm are provided, or if parameters are invalid.
 
         Examples:
-            tracks.move(80, 80, 5, accel=80, accel_interval=0.1)
-            tracks.move(80, 80, 5, stop_at_end=False)
+            tracks.move(80, 80, duration=5, accel=80, accel_interval=0.1)
+            tracks.move(80, 80, distance_cm=100)
         """
+        if (duration is None and distance_cm is None) or (duration is not None and distance_cm is not None):
+            raise TracksError("Exactly one of duration or distance_cm must be provided.")
+
         left_target = self.sanitize_speed(left_track_speed)
         right_target = self.sanitize_speed(right_track_speed)
-        dur = self.sanitize_duration(duration)
+
+        # Calculate duration if distance_cm is given
+        if distance_cm is not None:
+            if accel is not None and accel > 0:
+                left_start = self.get_left_track_speed()
+                right_start = self.get_right_track_speed()
+                duration_val = self._move_duration_with_accel(
+                    left_start, right_start, left_target, right_target, float(distance_cm), float(accel)
+                )
+            else:
+                duration_val = self._move_duration(left_target, right_target, float(distance_cm))
+        else:
+            duration_val = self.sanitize_duration(duration)
+
+        # Clamp duration to [0.1, move_duration_max]
+        orig_duration = duration_val
+        duration_val = max(0.1, min(float(self.move_duration_max), float(duration_val)))
+        if duration_val != orig_duration:
+            logging.warning(
+                f"Move duration {orig_duration:.2f}s clamped to {duration_val:.2f}s "
+                f"(limits: 0.1s to {self.move_duration_max}s)."
+            )
 
         # Validate accel and accel_interval
         if accel is not None:
@@ -442,7 +588,7 @@ class Tracks:
             accel_interval_val = float(accel_interval)
         except (ValueError, TypeError):
             raise TracksError("Acceleration interval (accel_interval) must be a positive float.")
-        if accel_interval_val <= 0 or accel_interval_val > dur:
+        if accel_interval_val <= 0 or accel_interval_val > duration_val:
             raise TracksError("Acceleration interval (accel_interval) must be > 0 and <= duration.")
 
         # Use current speeds as starting point for ramping
@@ -452,13 +598,13 @@ class Tracks:
         try:
             if accel_val is None or accel_val <= 0:
                 # No smoothing, jump to target
-                logging.debug(f"Jumping to target speeds: left={left_target}, right={right_target}, for={dur:03.2f} seconds")
+                logging.debug(f"Jumping to target speeds: left={left_target}, right={right_target}, for={duration_val:03.2f} seconds")
                 self.set_left_track_speed(left_target)
                 self.set_right_track_speed(right_target)
-                time.sleep(dur)
+                time.sleep(duration_val)
             else:
                 # Smooth acceleration from current speed to target speed
-                logging.debug(f"Smoothly accelerating to target speeds: left={left_target}, right={right_target}, for={dur:03.2f} seconds with accel={accel_val}%")
+                logging.debug(f"Smoothly accelerating to target speeds: left={left_target}, right={right_target}, for={duration_val:03.2f} seconds with accel={accel_val}%")
                 import math
                 left_delta = left_target - left_start
                 right_delta = right_target - right_start
@@ -471,7 +617,7 @@ class Tracks:
                     if accel_val > 0 and right_delta != 0 else 1
                 )
                 steps = max(1, int(max(steps_left, steps_right)))
-                total_steps = max(1, int(dur / accel_interval_val))
+                total_steps = max(1, int(duration_val / accel_interval_val))
                 steps = min(steps, total_steps)
                 for i in range(steps):
                     frac = (i + 1) / steps
@@ -481,7 +627,7 @@ class Tracks:
                     self.set_right_track_speed(right)
                     time.sleep(accel_interval_val)
                 # Hold at target for the remainder
-                remaining = dur - steps * accel_interval_val
+                remaining = duration_val - steps * accel_interval_val
                 if remaining > 0:
                     self.set_left_track_speed(left_target)
                     self.set_right_track_speed(right_target)
@@ -497,18 +643,17 @@ class Tracks:
         self,
         left_track_speed: Union[int, float, str],
         right_track_speed: Union[int, float, str],
-        duration: float,
+        duration: Optional[float] = None,
+        distance_cm: Optional[float] = None,
         accel: Optional[float] = None,
         accel_interval: float = 0.05,
         stop_at_end: bool = True,
     ) -> None:
         """
-        Asynchronously move both tracks at specified speeds for a given duration,
+        Asynchronously move both tracks at specified speeds for a given duration or distance,
         with optional acceleration smoothing.
 
-        If `accel` is provided and > 0, the speed ramps smoothly from the current speed to the target speed
-        over the specified duration, using the given acceleration rate and interval. If `accel` is None or <= 0,
-        the speed jumps instantly to the target value.
+        Either `duration` or `distance_cm` must be provided (not both).
 
         This method can be cancelled (e.g., via asyncio.Task.cancel()), but will only stop the tracks
         if the duration completes or an exception occurs. If cancelled, the tracks will continue
@@ -518,22 +663,47 @@ class Tracks:
             left_track_speed: Target speed for the left track (-100 to 100, zero allowed for stopping).
             right_track_speed: Target speed for the right track (-100 to 100, zero allowed for stopping).
             duration: Duration in seconds (positive float, <= MOVE_DURATION_MAX).
+            distance_cm: Distance to travel in centimeters (positive float).
             accel: Optional acceleration in percent per second (e.g., 100 for full speed in 1s).
                    If None, jumps instantly to target speed.
             accel_interval: Time step for acceleration smoothing in seconds.
             stop_at_end: If True (default), stop both tracks at the end. If False, leave tracks running.
 
         Raises:
-            TracksError: If duration or acceleration parameters are invalid.
+            TracksError: If neither or both of duration and distance_cm are provided, or if parameters are invalid.
             asyncio.CancelledError: If the move is interrupted (tracks will NOT be stopped).
 
         Examples:
-            await tracks.move_async(80, 80, 5, accel=40)
-            await tracks.move_async(80, 80, 5, stop_at_end=False)
+            await tracks.move_async(80, 80, distance_cm=100, accel=40)
+            await tracks.move_async(80, 80, duration=5, stop_at_end=False)
         """
+        if (duration is None and distance_cm is None) or (duration is not None and distance_cm is not None):
+            raise TracksError("Exactly one of duration or distance_cm must be provided.")
+
         left_target = self.sanitize_speed(left_track_speed)
         right_target = self.sanitize_speed(right_track_speed)
-        dur = self.sanitize_duration(duration)
+
+        # Calculate duration if distance_cm is given
+        if distance_cm is not None:
+            if accel is not None and accel > 0:
+                left_start = self.get_left_track_speed()
+                right_start = self.get_right_track_speed()
+                duration_val = self._move_duration_with_accel(
+                    left_start, right_start, left_target, right_target, float(distance_cm), float(accel)
+                )
+            else:
+                duration_val = self._move_duration(left_target, right_target, float(distance_cm))
+        else:
+            duration_val = self.sanitize_duration(duration)
+
+        # Clamp duration to [0.1, move_duration_max]
+        orig_duration = duration_val
+        duration_val = max(0.1, min(float(self.move_duration_max), float(duration_val)))
+        if duration_val != orig_duration:
+            logging.warning(
+                f"Move duration {orig_duration:.2f}s clamped to {duration_val:.2f}s "
+                f"(limits: 0.1s to {self.move_duration_max}s)."
+            )
 
         # Validate accel and accel_interval
         if accel is not None:
@@ -550,7 +720,7 @@ class Tracks:
             accel_interval_val = float(accel_interval)
         except (ValueError, TypeError):
             raise TracksError("Acceleration interval (accel_interval) must be a positive float.")
-        if accel_interval_val <= 0 or accel_interval_val > dur:
+        if accel_interval_val <= 0 or accel_interval_val > duration_val:
             raise TracksError("Acceleration interval (accel_interval) must be > 0 and <= duration.")
 
         # Use current speeds as starting point for ramping
@@ -560,13 +730,13 @@ class Tracks:
         try:
             if accel_val is None or accel_val <= 0:
                 # No smoothing, jump to target
-                logging.debug(f"Jumping to target speeds: left={left_target}, right={right_target}, for={dur:03.2f} seconds")
+                logging.debug(f"Jumping to target speeds: left={left_target}, right={right_target}, for={duration_val:03.2f} seconds")
                 self.set_left_track_speed(left_target)
                 self.set_right_track_speed(right_target)
-                await asyncio.sleep(dur)
+                await asyncio.sleep(duration_val)
             else:
                 # Smooth acceleration from current speed to target speed
-                logging.debug(f"Smoothly accelerating to target speeds: left={left_target}, right={right_target}, for={dur:03.2f} seconds with accel={accel_val}%")
+                logging.debug(f"Smoothly accelerating to target speeds: left={left_target}, right={right_target}, for={duration_val:03.2f} seconds with accel={accel_val}%")
                 import math
                 left_delta = left_target - left_start
                 right_delta = right_target - right_start
@@ -579,7 +749,7 @@ class Tracks:
                     if accel_val > 0 and right_delta != 0 else 1
                 )
                 steps = max(1, int(max(steps_left, steps_right)))
-                total_steps = max(1, int(dur / accel_interval_val))
+                total_steps = max(1, int(duration_val / accel_interval_val))
                 steps = min(steps, total_steps)
                 for i in range(steps):
                     frac = (i + 1) / steps
@@ -589,7 +759,7 @@ class Tracks:
                     self.set_right_track_speed(right)
                     await asyncio.sleep(accel_interval_val)
                 # Hold at target for the remainder
-                remaining = dur - steps * accel_interval_val
+                remaining = duration_val - steps * accel_interval_val
                 if remaining > 0:
                     self.set_left_track_speed(left_target)
                     self.set_right_track_speed(right_target)

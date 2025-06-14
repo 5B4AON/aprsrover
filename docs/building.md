@@ -44,9 +44,16 @@ Upload to TestPyPi
 python3 -m twine upload --repository testpypi dist/*
 ``` 
 
-Install from TestPyPi
+Install from TestPyPi  
+First command shows available versions  
+Second command installs latest available if not installed  
+Third installs a specific version  
+Fourth uninstalls existing and installs latest  
 ```sh
+pip index versions -i https://test.pypi.org/simple aprsrover
 pip install -i https://test.pypi.org/simple aprsrover
+pip install -i https://test.pypi.org/simple aprsrover==0.10.0
+pip install --upgrade -i https://test.pypi.org/simple aprsrover
 ```  
 
 Upload to PyPi  

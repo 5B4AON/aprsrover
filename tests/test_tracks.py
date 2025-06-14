@@ -370,4 +370,93 @@ class TestTracks(unittest.TestCase):
         with self.assertRaises(TracksError):
             asyncio.run(self.tracks.turn_async(70, -1, "left", angle_deg=90))
 
- 
+    def test_move_by_distance(self):
+        """Test move() with distance_cm argument."""
+        orig_sleep = time.sleep
+        time.sleep = lambda x: None
+        # Patch set_left/right_track_speed to not call hardware
+        orig_set_left = self.tracks.set_left_track_speed
+        orig_set_right = self.tracks.set_right_track_speed
+        self.tracks.set_left_track_speed = lambda x=0: setattr(self.tracks, "_left_track_speed", x)
+        self.tracks.set_right_track_speed = lambda x=0: setattr(self.tracks, "_right_track_speed", x)
+
+        # Should move for correct duration based on calibration and speeds (no warning expected)
+        self.tracks.base_speed = 70
+        self.tracks.base_distance = 35.0
+        self.tracks.base_duration = 3.5
+        self.tracks.move(100, 100, distance_cm=28.58)
+        self.assertEqual(self.tracks.get_left_track_speed(), 0)
+        self.assertEqual(self.tracks.get_right_track_speed(), 0)
+
+        # Should log a warning if duration is clamped (e.g., very large distance)
+        with self.assertLogs(level="WARNING") as cm:
+            self.tracks.move(100, 100, distance_cm=10000)
+            self.assertTrue(any("clamped" in msg for msg in cm.output))
+
+        # Should raise if both speeds are zero
+        with self.assertRaises(TracksError):
+            self.tracks.move(0, 0, distance_cm=10)
+
+        # Should raise if distance_cm is negative or zero
+        with self.assertRaises(TracksError):
+            self.tracks.move(80, 80, distance_cm=0)
+        with self.assertRaises(TracksError):
+            self.tracks.move(80, 80, distance_cm=-5)
+
+        # Should raise if both duration and distance_cm are given
+        with self.assertRaises(TracksError):
+            self.tracks.move(80, 80, duration=1, distance_cm=10)
+
+        # Should raise if neither duration nor distance_cm is given
+        with self.assertRaises(TracksError):
+            self.tracks.move(80, 80)
+
+        # Restore originals
+        self.tracks.set_left_track_speed = orig_set_left
+        self.tracks.set_right_track_speed = orig_set_right
+        time.sleep = orig_sleep
+
+    def test_move_async_by_distance(self):
+        """Test move_async() with distance_cm argument."""
+        async def run():
+            # Patch set_left/right_track_speed to not call hardware
+            orig_set_left = self.tracks.set_left_track_speed
+            orig_set_right = self.tracks.set_right_track_speed
+            self.tracks.set_left_track_speed = lambda x=0: setattr(self.tracks, "_left_track_speed", x)
+            self.tracks.set_right_track_speed = lambda x=0: setattr(self.tracks, "_right_track_speed", x)
+
+            # Should move for correct duration based on calibration and speeds
+            self.tracks.base_speed = 70
+            self.tracks.base_distance = 35.0
+            self.tracks.base_duration = 3.5
+            # At 70% speed, 35cm in 3.5s => 10 cm/s
+            # At 100% speed, 10 * (100/70) = ~14.29 cm/s
+            # For 28.58 cm at 100% speed, expect 2.0s
+            await self.tracks.move_async(100, 100, distance_cm=28.58)
+            self.assertEqual(self.tracks.get_left_track_speed(), 0)
+            self.assertEqual(self.tracks.get_right_track_speed(), 0)
+
+            # Should raise if both speeds are zero
+            with self.assertRaises(TracksError):
+                await self.tracks.move_async(0, 0, distance_cm=10)
+
+            # Should raise if distance_cm is negative or zero
+            with self.assertRaises(TracksError):
+                await self.tracks.move_async(80, 80, distance_cm=0)
+            with self.assertRaises(TracksError):
+                await self.tracks.move_async(80, 80, distance_cm=-5)
+
+            # Should raise if both duration and distance_cm are given
+            with self.assertRaises(TracksError):
+                await self.tracks.move_async(80, 80, duration=1, distance_cm=10)
+
+            # Should raise if neither duration nor distance_cm is given
+            with self.assertRaises(TracksError):
+                await self.tracks.move_async(80, 80)
+
+            # Restore originals
+            self.tracks.set_left_track_speed = orig_set_left
+            self.tracks.set_right_track_speed = orig_set_right
+
+        asyncio.run(run())
+
