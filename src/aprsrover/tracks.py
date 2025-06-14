@@ -158,9 +158,9 @@ class Tracks:
     DEFAULT_PWM_REV_MIN: int = 329
     DEFAULT_PWM_REV_MAX: int = 419
     DEFAULT_LEFT_CHANNEL: int = 8
-    DEFAULT_LEFT_CHANNEL_REVERSE: bool = False
+    DEFAULT_LEFT_CHANNEL_REVERSE: bool = True
     DEFAULT_RIGHT_CHANNEL: int = 9
-    DEFAULT_RIGHT_CHANNEL_REVERSE: bool = True
+    DEFAULT_RIGHT_CHANNEL_REVERSE: bool = False
     DEFAULT_MOVE_DURATION_MAX: int = 10  # Maximum allowed duration in seconds
     DEFAULT_TRACK_WIDTH_CM: float = 15.0  # Distance between tracks in cm (adjust as needed)
 
