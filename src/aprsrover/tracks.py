@@ -39,6 +39,9 @@ The Tracks class exposes several default parameters as class-level constants (pr
 - `DEFAULT_RIGHT_CHANNEL_REVERSE`: Whether to reverse the right track direction (default: True)
 - `DEFAULT_MOVE_DURATION_MAX`: Maximum allowed move duration in seconds (default: 10)
 - `DEFAULT_TRACK_WIDTH_CM`: Distance between tracks in centimeters (default: 19.0)
+- `DEFAULT_BASE_SPEED`: Calibration base speed as a percentage (default: 70)
+- `DEFAULT_BASE_DISTANCE`: Calibration base distance in centimeters (default: 30.0)
+- `DEFAULT_BASE_DURATION`: Calibration base duration in seconds (default: 3.5)
 
 **Changing parameters at runtime:**
 You can modify any of these parameters on a `Tracks` instance after construction. For example:
@@ -49,6 +52,9 @@ You can modify any of these parameters on a `Tracks` instance after construction
     tracks.left_channel_reverse = True  # Reverse left track direction
     tracks.right_channel = 10           # Use channel 10 for right track
     tracks.track_width_cm = 18.5        # Set track width to 18.5 cm
+    tracks.base_speed = 75              # Change calibration base speed
+    tracks.base_distance = 32.0         # Change calibration base distance
+    tracks.base_duration = 3.2          # Change calibration base duration
 
 This allows you to adapt the library to your specific hardware without subclassing or modifying the source.
 
@@ -164,6 +170,11 @@ class Tracks:
     DEFAULT_MOVE_DURATION_MAX: int = 10  # Maximum allowed duration in seconds
     DEFAULT_TRACK_WIDTH_CM: float = 19.0  # Distance between tracks in cm (adjust as needed)
 
+    # Calibration defaults
+    DEFAULT_BASE_SPEED: int = 70         # Calibration base speed as a percentage
+    DEFAULT_BASE_DISTANCE: float = 30.0  # Calibration base distance in centimeters
+    DEFAULT_BASE_DURATION: float = 3.5   # Calibration base duration in seconds
+
     def __init__(self, pwm: Optional[PWMControllerInterface] = None) -> None:
         """
         Initialize the Tracks controller.
@@ -196,6 +207,11 @@ class Tracks:
         self.move_duration_max: int = self.DEFAULT_MOVE_DURATION_MAX
         self.track_width_cm: float = self.DEFAULT_TRACK_WIDTH_CM
 
+        # Calibration parameters (modifiable at runtime)
+        self.base_speed: int = self.DEFAULT_BASE_SPEED
+        self.base_distance: float = self.DEFAULT_BASE_DISTANCE
+        self.base_duration: float = self.DEFAULT_BASE_DURATION
+
         self.initialized = False
         self.init()
 
@@ -215,7 +231,7 @@ class Tracks:
             logging.error("Failed to initialize PWM controller: %s", e)
             raise TracksError(f"Failed to initialize PWM controller: {e}")
 
-    def _sanitize_speed(self, speed: Union[int, float, str]) -> int:
+    def sanitize_speed(self, speed: Union[int, float, str]) -> int:
         """
         Convert speed to int and clamp to [-100, 100].
 
@@ -228,7 +244,12 @@ class Tracks:
         try:
             x = int(float(speed))
         except (ValueError, TypeError):
+            logging.error(f"Could not convert speed value '{speed}' to integer.")
             x = 0
+        if x < -100 or x > 100:
+            logging.warning(
+                f"Speed value {x} out of bounds [-100, 100]; clamping to limits."
+            )
         return max(-100, min(100, x))
 
     def get_pwm_fw_speed(self, speed: Union[int, float, str] = 0) -> int:
@@ -241,7 +262,7 @@ class Tracks:
         Returns:
             int: PWM value for forward motion.
         """
-        x = self._sanitize_speed(speed)
+        x = self.sanitize_speed(speed)
         x = max(0, min(100, x))  # Only allow 0-100 for forward
         if x > 99:
             return self.pwm_fw_max
@@ -260,7 +281,7 @@ class Tracks:
         Returns:
             int: PWM value for reverse motion.
         """
-        x = self._sanitize_speed(speed)
+        x = self.sanitize_speed(speed)
         x = max(0, min(100, x))  # Only allow 0-100 for reverse
         if x > 99:
             return self.pwm_rev_max
@@ -297,7 +318,7 @@ class Tracks:
         Raises:
             TracksError: If setting the PWM value fails.
         """
-        x = self._sanitize_speed(left_track_speed)
+        x = self.sanitize_speed(left_track_speed)
         self._left_track_speed = x  # Track the last commanded speed
         try:
             if self.left_channel_reverse:
@@ -325,7 +346,7 @@ class Tracks:
         Raises:
             TracksError: If setting the PWM value fails.
         """
-        x = self._sanitize_speed(right_track_speed)
+        x = self.sanitize_speed(right_track_speed)
         self._right_track_speed = x  # Track the last commanded speed
         try:
             if self.right_channel_reverse:
@@ -351,18 +372,24 @@ class Tracks:
             duration: Duration in seconds.
 
         Returns:
-            float: Validated duration.
+            float: Validated duration, clamped to (0, move_duration_max].
 
         Raises:
-            TracksError: If duration is not a positive float or exceeds move_duration_max.
+            TracksError: If duration is not a positive float or cannot be converted.
         """
         try:
             d = float(duration)
         except (ValueError, TypeError):
+            logging.error(f"Could not convert duration value '{duration}' to float.")
             raise TracksError("Duration must be a number.")
-        if not (0 < d <= self.move_duration_max):
-            raise TracksError(f"Duration must be >0 and <= {self.move_duration_max} seconds.")
-        return round(d, 2)
+        if d <= 0 or d > self.move_duration_max:
+            logging.warning(
+                f"Duration value {d} out of bounds (0, {self.move_duration_max}]; "
+                f"clamping to limits."
+            )
+        # Clamp to valid range (0, move_duration_max]
+        d_clamped = min(max(d, 0.01), self.move_duration_max)
+        return round(d_clamped, 2)
 
     def move(
         self,
@@ -381,8 +408,8 @@ class Tracks:
         the speed jumps instantly to the target value.
 
         Args:
-            left_track_speed: Speed for the left track (-100 to 100).
-            right_track_speed: Speed for the right track (-100 to 100).
+            left_track_speed: Speed for the left track (-100 to 100, zero allowed for stopping).
+            right_track_speed: Speed for the right track (-100 to 100, zero allowed for stopping).
             duration: Duration in seconds (positive float, max 2 decimal places, <= MOVE_DURATION_MAX).
             accel: Optional acceleration in percent per second (e.g., 100 for full speed in 1s).
                    If None or <= 0, jumps instantly to target speed.
@@ -396,8 +423,8 @@ class Tracks:
             tracks.move(80, 80, 5, accel=80, accel_interval=0.1)
             tracks.move(80, 80, 5, stop_at_end=False)
         """
-        left_target = self._sanitize_speed(left_track_speed)
-        right_target = self._sanitize_speed(right_track_speed)
+        left_target = self.sanitize_speed(left_track_speed)
+        right_target = self.sanitize_speed(right_track_speed)
         dur = self.sanitize_duration(duration)
 
         # Validate accel and accel_interval
@@ -488,8 +515,8 @@ class Tracks:
         running at the last set speed.
 
         Args:
-            left_track_speed: Target speed for the left track (-100 to 100).
-            right_track_speed: Target speed for the right track (-100 to 100).
+            left_track_speed: Target speed for the left track (-100 to 100, zero allowed for stopping).
+            right_track_speed: Target speed for the right track (-100 to 100, zero allowed for stopping).
             duration: Duration in seconds (positive float, <= MOVE_DURATION_MAX).
             accel: Optional acceleration in percent per second (e.g., 100 for full speed in 1s).
                    If None, jumps instantly to target speed.
@@ -504,8 +531,8 @@ class Tracks:
             await tracks.move_async(80, 80, 5, accel=40)
             await tracks.move_async(80, 80, 5, stop_at_end=False)
         """
-        left_target = self._sanitize_speed(left_track_speed)
-        right_target = self._sanitize_speed(right_track_speed)
+        left_target = self.sanitize_speed(left_track_speed)
+        right_target = self.sanitize_speed(right_track_speed)
         dur = self.sanitize_duration(duration)
 
         # Validate accel and accel_interval
@@ -593,7 +620,7 @@ class Tracks:
         the calibration: at speed 70, 3.5 seconds moves the rover 30 cm forward.
 
         Args:
-            speed: Overall speed (-100 to 100, positive = forward, negative = reverse).
+            speed: Overall speed (-100 to 100, positive = forward, negative = reverse, zero allowed for stopping).
             radius_cm: Turning radius in centimeters (0 = spin in place, >0 = arc turn).
             direction: 'left' or 'right'.
             duration: Duration of the turn in seconds. Required if angle_deg is not given.
@@ -612,9 +639,14 @@ class Tracks:
         """
         if direction not in ("left", "right"):
             raise TracksError("Direction must be 'left' or 'right'.")
-        speed_val = self._sanitize_speed(speed)
-        if speed_val == 0:
-            raise TracksError("Speed must be non-zero for turning.")
+        speed_val = self.sanitize_speed(speed)
+        # Clamp target speed to [5, 100] for turns, with warning
+        orig_speed_val = speed_val
+        if abs(speed_val) < 5 and abs(speed_val) != 0:
+            speed_val = 5 if speed_val > 0 else -5
+            logging.warning(
+                f"Turn speed value {orig_speed_val} clamped to {speed_val} for safe turn duration."
+            )
         if radius_cm < 0:
             raise TracksError("Radius must be >= 0.")
 
@@ -622,9 +654,20 @@ class Tracks:
         if angle_deg is not None:
             if duration is not None:
                 raise TracksError("Specify only one of duration or angle_deg.")
-            duration = self._turn_duration_for_angle(
-                abs(speed_val), radius_cm, abs(angle_deg)
-            )
+            if accel is not None and accel > 0:
+                # Use current arc speed as start speed for acceleration-aware duration
+                start_speed = self._current_arc_speed_percent(radius_cm)
+                duration = self._turn_duration_for_angle_with_accel(
+                    start_speed,
+                    abs(speed_val),
+                    radius_cm,
+                    abs(angle_deg),
+                    accel,
+                )
+            else:
+                duration = self._turn_duration_for_angle(
+                    abs(speed_val), radius_cm, abs(angle_deg)
+                )
         if duration is None:
             raise TracksError("Must specify either duration or angle_deg.")
 
@@ -661,7 +704,7 @@ class Tracks:
         the calibration: at speed 70, 3.5 seconds moves the rover 30 cm forward.
 
         Args:
-            speed: Overall speed (-100 to 100, positive = forward, negative = reverse).
+            speed: Overall speed (-100 to 100, positive = forward, negative = reverse, zero allowed for stopping).
             radius_cm: Turning radius in centimeters (0 = spin in place, >0 = arc turn).
             direction: 'left' or 'right'.
             duration: Duration of the turn in seconds. Required if angle_deg is not given.
@@ -680,9 +723,15 @@ class Tracks:
         """
         if direction not in ("left", "right"):
             raise TracksError("Direction must be 'left' or 'right'.")
-        speed_val = self._sanitize_speed(speed)
-        if speed_val == 0:
-            raise TracksError("Speed must be non-zero for turning.")
+        speed_val = self.sanitize_speed(speed)
+        # Clamp target speed to [5, 100] for turns, with warning
+        orig_speed_val = speed_val
+        if abs(speed_val) < 5 and abs(speed_val) != 0:
+            speed_val = 5 if speed_val > 0 else -5
+            logging.warning(
+                f"Turn speed value {orig_speed_val} clamped to {speed_val} for safe turn duration."
+            )
+        # Allow zero speed for decelerating to stop or stopping in place
         if radius_cm < 0:
             raise TracksError("Radius must be >= 0.")
 
@@ -690,9 +739,20 @@ class Tracks:
         if angle_deg is not None:
             if duration is not None:
                 raise TracksError("Specify only one of duration or angle_deg.")
-            duration = self._turn_duration_for_angle(
-                abs(speed_val), radius_cm, abs(angle_deg)
-            )
+            if accel is not None and accel > 0:
+                # Use current arc speed as start speed for acceleration-aware duration
+                start_speed = self._current_arc_speed_percent(radius_cm)
+                duration = self._turn_duration_for_angle_with_accel(
+                    start_speed,
+                    abs(speed_val),
+                    radius_cm,
+                    abs(angle_deg),
+                    accel,
+                )
+            else:
+                duration = self._turn_duration_for_angle(
+                    abs(speed_val), radius_cm, abs(angle_deg)
+                )
         if duration is None:
             raise TracksError("Must specify either duration or angle_deg.")
 
@@ -763,7 +823,7 @@ class Tracks:
         """
         Calculate duration needed to turn a given angle at a given speed/radius.
 
-        Uses calibration: at speed 70, 3.5 seconds moves the rover 30 cm forward.
+        Uses calibration: at speed 70, 3.5s moves the rover 30 cm forward.
 
         Args:
             speed: Absolute speed (1-100).
@@ -782,18 +842,164 @@ class Tracks:
         """
         if speed == 0:
             raise TracksError("Speed must be non-zero for turn duration calculation.")
+
+        # Clamp speed to [5, 100] with warning
+        orig_speed = speed
+        speed = max(5, min(100, abs(speed)))
+        if speed != abs(orig_speed):
+            logging.warning(
+                f"Speed value {orig_speed} clamped to {speed} for turn duration calculation."
+            )
+
         # Calibration: at speed 70, 3.5s -> 30cm straight
-        # So: speed 70 = 30cm/3.5s = 8.571 cm/s
-        base_speed = 70
-        base_cm_per_sec = 30 / 3.5
-        cm_per_sec = abs(speed) * (base_cm_per_sec / base_speed)
+        base_cm_per_sec = self.base_distance / self.base_duration
+        cm_per_sec = speed * (base_cm_per_sec / self.base_speed)
         if radius_cm == 0:
-            # Spin in place: arc length = (track_width_cm * pi) * (angle/360)
             arc_len = self.track_width_cm * math.pi * (angle_deg / 360)
-            # Each track travels arc_len in opposite directions
             duration = arc_len / cm_per_sec
         else:
-            # Arc turn: arc length = 2*pi*r * (angle/360)
             arc_len = 2 * math.pi * radius_cm * (angle_deg / 360)
             duration = arc_len / cm_per_sec
-        return duration
+
+        # Clamp duration to [0.1, move_duration_max] with warning
+        orig_duration = duration
+        duration = max(0.1, min(float(self.move_duration_max), float(duration)))
+        if duration != orig_duration:
+            logging.warning(
+                f"Turn duration {orig_duration:.2f}s clamped to {duration:.2f}s "
+                f"(limits: 0.1s to {self.move_duration_max}s)."
+            )
+        return float(duration)
+
+    def _turn_duration_for_angle_with_accel(
+        self,
+        start_speed: int,
+        target_speed: int,
+        radius_cm: float,
+        angle_deg: float,
+        accel: float,
+    ) -> float:
+        """
+        Estimate duration needed to turn a given angle, accounting for acceleration from start_speed
+        to target_speed at the specified acceleration rate.
+
+        Args:
+            start_speed: Starting speed (absolute value, 1-100).
+            target_speed: Target speed (absolute value, 1-100).
+            radius_cm: Turning radius in cm (0 = spin in place).
+            angle_deg: Angle to turn in degrees.
+            accel: Acceleration in percent per second (e.g., 40 means 40% per second).
+
+        Returns:
+            Estimated duration in seconds.
+
+        Raises:
+            TracksError: If accel <= 0 or speeds are invalid.
+        """
+        if target_speed == 0 or accel <= 0:
+            raise TracksError("Target speed and acceleration must be positive for duration estimation.")
+
+        # Clamp speeds to [5, 100] with warning
+        orig_start_speed = start_speed
+        orig_target_speed = target_speed
+        # Only clamp start_speed if not zero
+        if start_speed != 0:
+            start_speed = max(5, min(100, abs(start_speed)))
+            if start_speed != abs(orig_start_speed):
+                logging.warning(
+                    f"Start speed value {orig_start_speed} clamped to {start_speed} for turn duration with accel."
+                )
+        else:
+            start_speed = 0
+        target_speed = max(5, min(100, abs(target_speed)))
+        if target_speed != abs(orig_target_speed):
+            logging.warning(
+                f"Target speed value {orig_target_speed} clamped to {target_speed} for turn duration with accel."
+            )
+
+        # Calibration: at speed 70, 3.5s -> 30cm straight
+        base_cm_per_sec = self.base_distance / self.base_duration
+        v0 = start_speed * (base_cm_per_sec / self.base_speed)
+        v1 = target_speed * (base_cm_per_sec / self.base_speed)
+
+        if radius_cm == 0:
+            arc_len = self.track_width_cm * math.pi * (angle_deg / 360)
+        else:
+            arc_len = 2 * math.pi * radius_cm * (angle_deg / 360)
+
+        # Convert accel from percent/sec to cm/s^2
+        accel_cms2 = abs(accel) * (base_cm_per_sec / self.base_speed)
+
+        # If acceleration is very high, the ramp is nearly instantaneous.
+        # If the required distance to accelerate is greater than the arc length,
+        # we never reach target speed and must solve for t in s = v0*t + 0.5*a*t^2.
+        if accel_cms2 > 0:
+            t_accel = abs(v1 - v0) / accel_cms2
+            d_accel = (v0 + v1) / 2 * t_accel
+            if d_accel >= arc_len:
+                # The arc is too short to reach target speed; solve quadratic:
+                # s = v0*t + 0.5*a*t^2  => 0.5*a*t^2 + v0*t - arc_len = 0
+                a = 0.5 * accel_cms2
+                b = v0
+                c = -arc_len
+                discriminant = b**2 - 4*a*c
+                if discriminant < 0:
+                    raise TracksError("No real solution for turn duration with given parameters.")
+                t = (-b + math.sqrt(discriminant)) / (2*a)
+                duration = t
+            else:
+                # Accelerate to target speed, then continue at constant speed
+                d_const = max(0, arc_len - d_accel)
+                t_const = d_const / v1 if v1 > 0 else 0
+                duration = t_accel + t_const
+        else:
+            # No acceleration, just use constant speed
+            duration = arc_len / v1 if v1 > 0 else 0
+
+        # Clamp duration to [0.1, move_duration_max] with warning
+        orig_duration = duration
+        duration = max(0.1, min(float(self.move_duration_max), float(duration)))
+        if duration != orig_duration:
+            logging.warning(
+                f"Turn duration {orig_duration:.2f}s clamped to {duration:.2f}s "
+                f"(limits: 0.1s to {self.move_duration_max}s)."
+            )
+        return float(duration)
+
+    def _current_arc_speed_cm_s(self, radius_cm: float) -> float:
+        """
+        Compute the current speed along the arc for the given radius, based on current track speeds.
+
+        Args:
+            radius_cm: Turning radius in cm (0 = spin in place).
+
+        Returns:
+            float: Current speed along the arc in cm/s.
+        """
+        base_cm_per_sec = self.base_distance / self.base_duration
+        v_l = self.get_left_track_speed() * (base_cm_per_sec / self.base_speed)
+        v_r = self.get_right_track_speed() * (base_cm_per_sec / self.base_speed)
+        w = self.track_width_cm
+        if radius_cm == 0:
+            # For spin in place, use the average of the absolute values
+            return (abs(v_l) + abs(v_r)) / 2
+        # For arc, use the average of the two tracks
+        return (v_l + v_r) / 2
+
+    def _current_arc_speed_percent(self, radius_cm: float) -> float:
+        """
+        Compute the current speed along the arc for the given radius as a percentage (0-100),
+        compatible with the rest of the code.
+
+        Args:
+            radius_cm: Turning radius in cm (0 = spin in place).
+
+        Returns:
+            float: Current arc speed as a percentage (0-100).
+        """
+        base_cm_per_sec = self.base_distance / self.base_duration
+        arc_speed_cm_s = self._current_arc_speed_cm_s(radius_cm)
+        # Convert cm/s back to percent of base speed
+        arc_speed_percent = (arc_speed_cm_s / base_cm_per_sec) * self.base_speed
+        # Clamp to [0, 100]
+        return max(0.0, min(100.0, abs(arc_speed_percent)))
