@@ -1,9 +1,12 @@
 # APRS Rover Library
 
-A modular Python library for controlling a rover over APRS. Designed for easy integration, asynchronous operation, and high testability with abstracted hardware access.  
+A modular Python library for controlling a rover over APRS.  
+Using APRS is optional and does not prevent you from using the library for the rest of its features.  
+Designed for easy integration, asynchronous operation, and high testability with abstracted hardware access.  
 
-APRS (Automatic Packet Reporting System) is a digital communication protocol used by amateur radio operators to transmit real-time data such as position, telemetry, and messages over radio.
-To use the APRS functionality with a radio for over-the-air communication, you must hold a valid Amateur Radio license.
+APRS (Automatic Packet Reporting System) is a digital communication protocol used by amateur radio operators to transmit real-time data such as position, telemetry, and messages over radio. To use the APRS functionality with a radio for over-the-air communication, you must hold a valid Amateur Radio license.
+
+Developed in June 2025, as a STEM project by members of the [Cyprus Amateur Radio Society](https://www.cyhams.org).
 
 ---
 
