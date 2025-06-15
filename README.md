@@ -44,19 +44,7 @@ Developed in June 2025, as a STEM project by members of the [Cyprus Amateur Radi
 ---
 
 ## Examples
-See the [examples/](examples/README.md) directory for a wide range of real-world and modular usage scenarios, including:
-- Integration of APRS, GPS, Tracks, Switch, HW Info, UltraSonic, Servo, and NeoPixel modules for remote rover control, telemetry, lighting, and system monitoring.
-- Synchronous and asynchronous movement and turning with Tracks and Servo, including acceleration smoothing, interruption, and dummy/mock PWM usage.
-- Synchronous and asynchronous distance measurement with UltraSonic, including observer registration and dummy/mock GPIO usage.
-- Synchronous and asynchronous NeoPixel LED control, including animation with `NeoPixelAnimator`, and dummy/hardware backends for safe testing.
-- Registering APRS message callbacks to control rover movement, respond with position or status, and handle acknowledgements.
-- Demonstrations of dummy/test backends for GPS, PWM, HW Info, APRS, Switch, UltraSonic, Servo, and NeoPixel modules for safe testing without hardware.
-- End-to-end integration scripts combining various modules.
-- Example scripts organized by feature and by sync/async usage, with clear separation of dummy and real hardware scenarios.
-- Synchronous and asynchronous DHT sensor reading and monitoring, including dummy/hardware backends for safe testing.
-- Synchronous and asynchronous compass heading reading and monitoring, including dummy/hardware backends for safe testing.
-
-Browse the `examples/` subfolders for focused demonstrations of each module and integration pattern.
+See the [examples/](examples/README.md) directory for a wide range of real-world and modular usage scenarios.
 
 ---
 
