@@ -13,6 +13,7 @@ A modular Python library for controlling a rover using APRS, GPS, GPIO switches,
 - **HW Info**: Query CPU temperature, CPU usage, RAM usage, and system uptime with dependency injection for testability.
 - **UltraSonic**: Interface with ultrasonic distance sensors (e.g., HC-SR04), supporting sync/async measurement, observer pattern, and dummy/test backends.
 - **NeoPixel**: Control WS2812/WS2812B LED strips or rings with sync/async APIs, dummy and hardware backends, and animation support via `NeoPixelAnimator`.
+- **DHT**: Read temperature and humidity from DHT11/DHT22/AM2302 sensors with sync/async APIs, dummy and hardware backends.
 - **Testing**: All hardware access is abstracted for easy mocking; high test coverage and CI-friendly.
 - **Documentation**: Comprehensive usage examples and API documentation.
 
@@ -28,6 +29,7 @@ A modular Python library for controlling a rover using APRS, GPS, GPIO switches,
 - [UltraSonic Module](docs/ultra.md)
 - [Servo Module](docs/servo.md)
 - [NeoPixel Module](docs/neopixel.md)
+- [DHT Module](docs/dht.md)
 - [Testing Guide](docs/testing.md)
 - [Building the Package](docs/building.md)
 
@@ -43,6 +45,7 @@ See the [examples/](examples/README.md) directory for a wide range of real-world
 - Demonstrations of dummy/test backends for GPS, PWM, HW Info, APRS, Switch, UltraSonic, Servo, and NeoPixel modules for safe testing without hardware.
 - End-to-end integration scripts combining various modules.
 - Example scripts organized by feature and by sync/async usage, with clear separation of dummy and real hardware scenarios.
+- Synchronous and asynchronous DHT sensor reading and monitoring, including dummy/hardware backends for safe testing.
 
 Browse the `examples/` subfolders for focused demonstrations of each module and integration pattern.
 
@@ -62,6 +65,7 @@ Browse the `examples/` subfolders for focused demonstrations of each module and 
 - ax253
 - RPi.GPIO (if running on Raspberry Pi)
 - rpi_ws281x
+- Adafruit_DHT
 
 ## License
 MIT

@@ -14,7 +14,7 @@ Requires:
 Run this script directly to see output from both single and periodic measurements.
 """
 from aprsrover.ultra import UltraSonic, UltraSonicEvent
-from examples.dummies.ultra import DummyUltra
+from examples.dummies import DummyUltra
 import time
 
 def on_distance(event: UltraSonicEvent):

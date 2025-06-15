@@ -8,7 +8,7 @@ Uses: DummyNeoPixelBackend from examples.dummies.neopixel (no hardware required)
 """
 
 import time
-from examples.dummies.neopixel import DummyNeoPixelBackend
+from examples.dummies import DummyNeoPixelBackend
 from aprsrover.neopixel import NeoPixelAnimator
 
 def main() -> None:

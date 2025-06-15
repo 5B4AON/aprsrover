@@ -44,6 +44,7 @@ This directory contains usage examples for the `aprsrover` library, organized by
 - **Tracks**: Track recording and management
 - **UltraSonic**: Ultrasonic distance sensor interface
 - **Neopixel**: Neopixel LED control interface
+- **DHT**: DHT11/DHT22/AM2302 temperature and humidity sensor interface
 
 ## Integration Examples
 
