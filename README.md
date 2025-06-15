@@ -45,6 +45,26 @@ Developed in June 2025, as a STEM project by members of the [Cyprus Amateur Radi
 
 ---
 
+## Installation
+
+You can install this package from [TestPyPI](https://test.pypi.org/project/aprsrover/) with:
+
+```bash
+pip install -i https://test.pypi.org/simple/ aprsrover
+```
+
+If you want to ensure you are using a virtual environment:
+
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install your-package-name
+```
+
+Requires Python 3.10 or higher.
+
+---
+
 ## Examples
 See the [examples/](https://github.com/5B4AON/aprsrover/tree/main/examples) directory for a wide range of real-world and modular usage scenarios.
 
