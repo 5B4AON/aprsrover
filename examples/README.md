@@ -45,6 +45,7 @@ This directory contains usage examples for the `aprsrover` library, organized by
 - **UltraSonic**: Ultrasonic distance sensor interface
 - **Neopixel**: Neopixel LED control interface
 - **DHT**: DHT11/DHT22/AM2302 temperature and humidity sensor interface
+- **Compass**: HMC5883L digital compass sensor interface
 
 ## Integration Examples
 

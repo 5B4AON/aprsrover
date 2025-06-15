@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aprsrover"
-version = "0.16.0"
+version = "0.17.0"
 description = "Python library for APRS Rover utilities: APRS messaging, GPS, and rover track control."
 readme = "README.md"
 authors = [
@@ -21,7 +21,8 @@ dependencies = [
     "kiss3",
     "ax253",
     "rpi_ws281x",
-    "Adafruit_DHT"
+    "Adafruit_DHT",
+    "smbus2"
 ]
 classifiers = [
     "Programming Language :: Python :: 3",

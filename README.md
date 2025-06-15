@@ -1,6 +1,9 @@
 # APRS Rover Library
 
-A modular Python library for controlling a rover using APRS, GPS, GPIO switches, PWM tracks, NeoPixel LEDs, and ultrasonic distance sensors. Designed for easy integration, asynchronous operation, and high testability with abstracted hardware access.
+A modular Python library for controlling a rover over APRS. Designed for easy integration, asynchronous operation, and high testability with abstracted hardware access.  
+
+APRS (Automatic Packet Reporting System) is a digital communication protocol used by amateur radio operators to transmit real-time data such as position, telemetry, and messages over radio.
+To use the APRS functionality with a radio for over-the-air communication, you must hold a valid Amateur Radio license.
 
 ---
 
@@ -14,6 +17,7 @@ A modular Python library for controlling a rover using APRS, GPS, GPIO switches,
 - **UltraSonic**: Interface with ultrasonic distance sensors (e.g., HC-SR04), supporting sync/async measurement, observer pattern, and dummy/test backends.
 - **NeoPixel**: Control WS2812/WS2812B LED strips or rings with sync/async APIs, dummy and hardware backends, and animation support via `NeoPixelAnimator`.
 - **DHT**: Read temperature and humidity from DHT11/DHT22/AM2302 sensors with sync/async APIs, dummy and hardware backends.
+- **Compass**: Read magnetic heading from HMC5883L sensors with sync/async APIs, dummy and hardware backends.
 - **Testing**: All hardware access is abstracted for easy mocking; high test coverage and CI-friendly.
 - **Documentation**: Comprehensive usage examples and API documentation.
 
@@ -30,6 +34,7 @@ A modular Python library for controlling a rover using APRS, GPS, GPIO switches,
 - [Servo Module](docs/servo.md)
 - [NeoPixel Module](docs/neopixel.md)
 - [DHT Module](docs/dht.md)
+- [Compass Module](docs/compass.md)
 - [Testing Guide](docs/testing.md)
 - [Building the Package](docs/building.md)
 
@@ -46,6 +51,7 @@ See the [examples/](examples/README.md) directory for a wide range of real-world
 - End-to-end integration scripts combining various modules.
 - Example scripts organized by feature and by sync/async usage, with clear separation of dummy and real hardware scenarios.
 - Synchronous and asynchronous DHT sensor reading and monitoring, including dummy/hardware backends for safe testing.
+- Synchronous and asynchronous compass heading reading and monitoring, including dummy/hardware backends for safe testing.
 
 Browse the `examples/` subfolders for focused demonstrations of each module and integration pattern.
 
@@ -66,6 +72,7 @@ Browse the `examples/` subfolders for focused demonstrations of each module and 
 - RPi.GPIO (if running on Raspberry Pi)
 - rpi_ws281x
 - Adafruit_DHT
+- smbus2
 
 ## License
 MIT

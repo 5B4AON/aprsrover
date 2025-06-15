@@ -11,3 +11,4 @@ from .pwm import DummyPWM
 from .dht import DummyDHT
 from .ultra import DummyUltra
 from .neopixel import DummyNeoPixelBackend
+from .compass import DummyCompass
