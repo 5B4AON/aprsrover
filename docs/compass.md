@@ -19,6 +19,24 @@ The `aprsrover.compass` module provides a modular, testable interface for readin
 
 ## Quick Start
 
+To interface an HMC5883L sensor with a Raspberry Pi, you'll need to enable I2C on the Raspberry Pi, connect the sensor's I2C pins (SDA, SCL, VCC, GND) to corresponding pins on the Pi, and then use a Python library to read data from the sensor.
+
+1. ### Enable I2C on the Raspberry Pi:
+    - Open the Raspberry Pi Configuration menu using sudo raspi-config.
+    - Navigate to Interface Options -> I2C and enable it.
+    - Alternatively, you can enable it by editing /boot/config.txt and adding dtparam=i2c_arm=on. 
+
+2. ### Connect the QMC5883L to the Raspberry Pi:
+    - Connect the QMC5883L's VCC (usually 3.3V or 5V) to the Raspberry Pi's 3.3V or 5V pin.
+    - Connect the QMC5883L's GND to the Raspberry Pi's GND pin.
+    - Connect the QMC5883L's SDA (Serial Data) to the Raspberry Pi's SDA (GPIO 2 or GPIO 3, depending on the Pi model).
+    - Connect the QMC5883L's SCL (Serial Clock) to the Raspberry Pi's SCL (GPIO 2 or GPIO 3, depending on the Pi model). 
+
+3. ### Install necessary libraries:
+    - Open a terminal on your Raspberry Pi.
+    - Install the smbus library: sudo apt-get install python3-smbus.
+    - Install the qmc5883l library (or another suitable library for the QMC5883L, like the one from SunFounder or GitHub). 
+
 ### Hardware Backend (Synchronous)
 
 ```python
