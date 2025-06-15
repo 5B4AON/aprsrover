@@ -4,9 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aprsrover"
-version = "0.17.0"
-description = "Python library for APRS Rover utilities: APRS messaging, GPS, and rover track control."
+version = "0.18.0"
+description = "A modular Python library for controlling a rover over APRS."
 readme = "README.md"
+urls = { 
+    "Homepage" = "https://github.com/5B4AON/aprsrover"
+}
 authors = [
     { name = "5B4AON" }
 ]
