@@ -7,16 +7,12 @@ name = "aprsrover"
 version = "0.18.0"
 description = "A modular Python library for controlling a rover over APRS."
 readme = "README.md"
-urls = { 
-    "Homepage" = "https://github.com/5B4AON/aprsrover"
-}
+urls = { Homepage = "https://github.com/5B4AON/aprsrover" }
 authors = [
-    { name = "5B4AON" }
+    { name = "Mike (5B4AON)", email = "mchris77@gmail.com" }
 ]
 license = "MIT"
-license-files = [
-    "LICENSE",
-]
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 dependencies = [
     "gpsd-py3",
