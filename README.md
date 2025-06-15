@@ -12,9 +12,9 @@ Developed in June 2025, as a STEM project by members of the [Cyprus Amateur Radi
 
 ## Features Overview
 
-- **GPS**: Connect to GPSD, retrieve and format GPS data, with robust error handling and testable backends.
-- **Tracks**: Control rover tracks via PWM, with sync/async APIs, acceleration smoothing, and input validation.
 - **APRS**: Interface with KISS TNC, send/receive APRS frames, observer pattern for async frame handling.
+- **Tracks**: Control rover tracks via PWM, with sync/async APIs, acceleration smoothing, and input validation.
+- **GPS**: Connect to GPSD, retrieve and format GPS data, with robust error handling and testable backends.
 - **Switch**: Manage GPIO-connected switches (input/output), observer pattern for state changes, async/sync monitoring.
 - **HW Info**: Query CPU temperature, CPU usage, RAM usage, and system uptime with dependency injection for testability.
 - **UltraSonic**: Interface with ultrasonic distance sensors (e.g., HC-SR04), supporting sync/async measurement, observer pattern, and dummy/test backends.
@@ -28,9 +28,9 @@ Developed in June 2025, as a STEM project by members of the [Cyprus Amateur Radi
 
 ## Documentation
 
-- [GPS Module](docs/gps.md)
-- [Tracks Module](docs/tracks.md)
 - [APRS Module](docs/aprs.md)
+- [Tracks Module](docs/tracks.md)
+- [GPS Module](docs/gps.md)
 - [Switch Module](docs/switch.md)
 - [HW Info Module](docs/hw_info.md)
 - [UltraSonic Module](docs/ultra.md)
