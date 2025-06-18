@@ -552,9 +552,9 @@ class Aprs:
             # For now, fill with ' ' (space) for no extension
             ext = "   "
             if time_dhm:
-                info = f"/{time_dhm}{symbol_id}{lat_enc}{lon_enc}{ext}{symbol_code}{comment}"
+                info = f"/{time_dhm}{symbol_id}{lat_enc}{lon_enc}{symbol_code}{ext}{comment}"
             else:
-                info = f"!{symbol_id}{lat_enc}{lon_enc}{ext}{symbol_code}{comment}"
+                info = f"!{symbol_id}{lat_enc}{lon_enc}{symbol_code}{ext}{comment}"
         else:
             # Standard format: lat/lon as DMM strings
             self._validate_lat_dmm(lat)  # type: ignore
