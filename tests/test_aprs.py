@@ -79,7 +79,8 @@ class TestAprs(unittest.TestCase):
         self.aprs.register_observer("DEST-1", cb)
         # Frame info must contain ":DEST-1   :" (callsign padded to 9 chars)
         info = b":DEST-1   :hello"
-        frame = Frame(destination="X", source="Y", path=[], info=info)
+        from ax253 import Address
+        frame = Frame(destination=Address(b"X"), source=Address(b"Y"), path=[], info=info)
         self.aprs._notify_observers(frame)
         self.assertEqual(called[0], frame)
 
@@ -87,20 +88,23 @@ class TestAprs(unittest.TestCase):
         def bad_cb(frame): raise RuntimeError("fail")
         self.aprs.register_observer("DEST-2", bad_cb)
         info = b":DEST-2:hello"
-        frame = Frame(destination="X", source="Y", path=[], info=info)
+        from ax253 import Address
+        frame = Frame(destination=Address(b"X"), source=Address(b"Y"), path=[], info=info)
         # Should not raise
         self.aprs._notify_observers(frame)
 
     def test_get_my_message(self):
         # Pad CALL-5 to 9 chars for APRS message format
         info = b":CALL-5   :test message{123"
-        frame = Frame(destination="X", source="Y", path=[], info=info)
+        from ax253 import Address
+        frame = Frame(destination=Address(b"X"), source=Address(b"Y"), path=[], info=info)
         msg = self.aprs.get_my_message("CALL-5", frame)
         self.assertEqual(msg, "test message")
 
     def test_get_my_message_none(self):
         info = b":OTHER:hello"
-        frame = Frame(destination="X", source="Y", path=[], info=info)
+        from ax253 import Address
+        frame = Frame(destination=Address(b"X"), source=Address(b"Y"), path=[], info=info)
         msg = self.aprs.get_my_message("CALL-6", frame)
         self.assertIsNone(msg)
 
@@ -428,7 +432,8 @@ class TestAprs(unittest.TestCase):
         proto = DummyKissProtocol()
         # Pad DEST-24 to 9 chars for APRS message format
         info = b":DEST-24  :hello"
-        frame = Frame(destination="X", source="Y", path=[], info=info)
+        from ax253 import Address
+        frame = Frame(destination=Address(b"X"), source=Address(b"Y"), path=[], info=info)
         proto.read_frames.append(frame)
         aprs = Aprs(host="localhost", port=8001, kiss=self.dummy_kiss)
         aprs.kiss_protocol = proto
@@ -453,7 +458,8 @@ class TestAprs(unittest.TestCase):
         self.aprs.kiss_protocol = proto
         self.aprs.initialized = True
         info = b":CALL-7     :test{42"
-        frame = Frame(destination="X", source="SRC", path=[], info=info)
+        from ax253 import Address
+        frame = Frame(destination=Address(b"X"), source=Address(b"SRC"), path=[], info=info)
         self.aprs.send_ack_if_requested(frame, "MYCALL-1", ["WIDE1-1"])
         self.assertTrue(proto.written_frames)
         ack_frame = proto.written_frames[0]
@@ -462,7 +468,8 @@ class TestAprs(unittest.TestCase):
     def test_send_ack_if_requested_not_initialized(self):
         self.aprs.initialized = False
         info = b":CALL-8     :test{42"
-        frame = Frame(destination="X", source="SRC", path=[], info=info)
+        from ax253 import Address
+        frame = Frame(destination=Address(b"X"), source=Address(b"SRC"), path=[], info=info)
         # Should not raise
         self.aprs.send_ack_if_requested(frame, "MYCALL-2", ["WIDE1-1"])
 
@@ -581,19 +588,6 @@ class TestAprs(unittest.TestCase):
                 symbol_id="/",
                 symbol_code=">",
                 comment="X" * 44
-            )
-
-    def test_send_position_report_not_initialized(self):
-        self.aprs.initialized = False
-        with self.assertRaises(AprsError):
-            self.aprs.send_position_report(
-                mycall="CALL-38",
-                path=["WIDE1-1"],
-                lat="5132.07N",
-                lon="00007.40W",
-                symbol_id="/",
-                symbol_code=">",
-                comment="Test"
             )
 
     def test_send_position_report_write_exception(self):

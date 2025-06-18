@@ -58,7 +58,7 @@ See the README.md for more usage examples and parameter details.
 This module is designed to be imported and used from other Python scripts.
 """
 
-from typing import Optional, Callable, Awaitable, Protocol, Any
+from typing import AsyncGenerator, Optional, Callable, Awaitable, Protocol, Any
 from ax253 import Frame
 import logging
 import asyncio
@@ -87,7 +87,7 @@ class KISSInterface(Protocol):
     def write(self, frame: Frame) -> None:
         ...
 
-    def read(self):
+    def read(self) -> AsyncGenerator[Frame, Any]:
         ...
 
 
@@ -296,6 +296,8 @@ class Aprs:
                 path=path,
                 info=info.encode("utf-8"),
             )
+            if self.kiss_protocol is None:
+                raise AprsError("KISS protocol not initialized. Call connect() first.")
             self.kiss_protocol.write(frame)
             logging.info(f"Sent APRS message from {mycall} to {recipient}: {message}")
         except Exception as e:
@@ -450,6 +452,8 @@ class Aprs:
                 path=path,
                 info=info.encode("utf-8"),
             )
+            if self.kiss_protocol is None:
+                raise AprsError("KISS protocol not initialized. Call connect() first.")
             self.kiss_protocol.write(frame)
             logging.info(f"Sent APRS object: {info}")
         except Exception as e:
@@ -571,6 +575,8 @@ class Aprs:
                 path=path,
                 info=info.encode("utf-8"),
             )
+            if self.kiss_protocol is None:
+                raise AprsError("KISS protocol not initialized. Call connect() first.")
             self.kiss_protocol.write(frame)
             logging.info(
                 "Sent APRS position report from %s: %s", mycall, info
@@ -645,6 +651,8 @@ class Aprs:
                 path=path,
                 info=info.encode("utf-8"),
             )
+            if self.kiss_protocol is None:
+                raise AprsError("KISS protocol not initialized. Call connect() first.")
             self.kiss_protocol.write(frame)
             logging.info("Sent APRS status report from %s: %s", mycall, info)
         except Exception as e:

@@ -59,8 +59,12 @@ class PWMControllerInterface(Protocol):
 
     Methods:
         set_pwm(channel: int, on: int, off: int): Set PWM value for a channel.
+        set_pwm_freq(freq: int): Set the PWM frequency (Hz).
     """
     def set_pwm(self, channel: int, on: int, off: int) -> None:
+        ...
+
+    def set_pwm_freq(self, freq: int) -> None:
         ...
 
 
