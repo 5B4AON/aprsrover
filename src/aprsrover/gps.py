@@ -41,6 +41,7 @@ Usage example:
 from typing import Optional, Protocol, Any, Tuple
 from datetime import datetime
 import time
+from math import radians, degrees, sin, cos, asin, atan2
 
 __all__ = ["GPS", "GPSError", "GPSDInterface"]
 
@@ -259,3 +260,79 @@ class GPS:
         """
         bearing_int = int(round(track)) % 360
         return f"{bearing_int:03d}"
+
+    @staticmethod
+    def get_gps_target(
+        lat: float,
+        lon: float,
+        bearing: float,
+        distance_cm: int
+    ) -> tuple[float, float]:
+        """
+        Calculates the target latitude and longitude given a start point, bearing, and distance.
+
+        Parameters
+        ----------
+        lat : float
+            Starting latitude in decimal degrees.
+        lon : float
+            Starting longitude in decimal degrees.
+        bearing : float
+            Bearing in decimal degrees (0 = North, 90 = East).
+        distance_cm : int
+            Distance to travel from the starting point, in centimeters.
+
+        Returns
+        -------
+        tuple[float, float]
+            (target_latitude, target_longitude) in decimal degrees.
+
+        Raises
+        ------
+        ValueError
+            If input values are out of valid range.
+
+        Example
+        -------
+            >>> get_gps_target(51.5, -0.1, 90, 10000)
+            (51.499999..., -0.099858...)
+
+        Notes
+        -----
+        Uses the haversine formula for small distances.
+        """
+        if not (-90.0 <= lat <= 90.0):
+            raise ValueError("Latitude must be between -90 and 90 degrees.")
+        if not (-180.0 <= lon <= 180.0):
+            raise ValueError("Longitude must be between -180 and 180 degrees.")
+        if not (0 <= distance_cm):
+            raise ValueError("Distance must be non-negative.")
+
+        # Earth radius in meters
+        R = 6371000.0
+        distance_m = distance_cm / 100.0
+
+        lat_rad = radians(lat)
+        lon_rad = radians(lon)
+        bearing_rad = radians(bearing)
+
+        target_lat_rad = asin(
+            sin(lat_rad) * cos(distance_m / R) +
+            cos(lat_rad) * sin(distance_m / R) * cos(bearing_rad)
+        )
+
+        target_lon_rad = lon_rad + atan2(
+            sin(bearing_rad) * sin(distance_m / R) * cos(lat_rad),
+            cos(distance_m / R) - sin(lat_rad) * sin(target_lat_rad)
+        )
+
+        target_lat = degrees(target_lat_rad)
+        target_lon = degrees(target_lon_rad)
+
+        # Normalize longitude to [-180, 180]
+        if target_lon > 180:
+            target_lon -= 360
+        elif target_lon < -180:
+            target_lon += 360
+
+        return (target_lat, target_lon)

@@ -85,5 +85,72 @@ class TestGPS(unittest.TestCase):
         with self.assertRaises(GPSError):
             gps.get_gps_data_decimal(max_attempts=1)
 
+    def test_get_gps_target_north(self):
+        # Move 1km north from equator
+        lat, lon = 0.0, 0.0
+        bearing = 0.0
+        distance_cm = 100000
+        expected_lat = 0.008993
+        expected_lon = 0.0
+        result_lat, result_lon = GPS.get_gps_target(lat, lon, bearing, distance_cm)
+        self.assertAlmostEqual(result_lat, expected_lat, places=5)
+        self.assertAlmostEqual(result_lon, expected_lon, places=5)
+
+    def test_get_gps_target_east(self):
+        # Move 1km east from equator
+        lat, lon = 0.0, 0.0
+        bearing = 90.0
+        distance_cm = 100000
+        expected_lat = 0.0
+        expected_lon = 0.008993
+        result_lat, result_lon = GPS.get_gps_target(lat, lon, bearing, distance_cm)
+        self.assertAlmostEqual(result_lat, expected_lat, places=5)
+        self.assertAlmostEqual(result_lon, expected_lon, places=5)
+
+    def test_get_gps_target_south(self):
+        # Move 1km south from (1, 1)
+        lat, lon = 1.0, 1.0
+        bearing = 180.0
+        distance_cm = 100000
+        expected_lat = 0.991007
+        expected_lon = 1.0
+        result_lat, result_lon = GPS.get_gps_target(lat, lon, bearing, distance_cm)
+        self.assertAlmostEqual(result_lat, expected_lat, places=5)
+        self.assertAlmostEqual(result_lon, expected_lon, places=5)
+
+    def test_get_gps_target_west(self):
+        # Move 1km west from (0, 1)
+        lat, lon = 0.0, 1.0
+        bearing = 270.0
+        distance_cm = 100000
+        expected_lat = 0.0
+        expected_lon = 0.991007
+        result_lat, result_lon = GPS.get_gps_target(lat, lon, bearing, distance_cm)
+        self.assertAlmostEqual(result_lat, expected_lat, places=5)
+        self.assertAlmostEqual(result_lon, expected_lon, places=5)
+
+    def test_get_gps_target_no_movement(self):
+        # No movement
+        lat, lon = 10.0, 10.0
+        bearing = 45.0
+        distance_cm = 0
+        expected_lat = 10.0
+        expected_lon = 10.0
+        result_lat, result_lon = GPS.get_gps_target(lat, lon, bearing, distance_cm)
+        self.assertAlmostEqual(result_lat, expected_lat, places=7)
+        self.assertAlmostEqual(result_lon, expected_lon, places=7)
+
+    def test_get_gps_target_invalid_latitude(self):
+        with self.assertRaises(ValueError):
+            GPS.get_gps_target(91.0, 0.0, 0.0, 10000)
+
+    def test_get_gps_target_invalid_longitude(self):
+        with self.assertRaises(ValueError):
+            GPS.get_gps_target(0.0, 181.0, 0.0, 10000)
+
+    def test_get_gps_target_negative_distance(self):
+        with self.assertRaises(ValueError):
+            GPS.get_gps_target(0.0, 0.0, 0.0, -1)
+
 if __name__ == "__main__":
     unittest.main()

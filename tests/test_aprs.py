@@ -474,8 +474,8 @@ class TestAprs(unittest.TestCase):
         self.aprs.send_position_report(
             mycall="CALL-30",
             path=["WIDE1-1"],
-            lat_dmm="5132.07N",
-            long_dmm="00007.40W",
+            lat="5132.07N",  # was lat_dmm
+            lon="00007.40W",  # was long_dmm
             symbol_id="/",
             symbol_code=">",
             comment="Test position",
@@ -493,8 +493,8 @@ class TestAprs(unittest.TestCase):
         self.aprs.send_position_report(
             mycall="CALL-31",
             path=["WIDE1-1"],
-            lat_dmm="5132.07N",
-            long_dmm="00007.40W",
+            lat="5132.07N",  # was lat_dmm
+            lon="00007.40W",  # was long_dmm
             symbol_id="/",
             symbol_code=">",
             comment="No time"
@@ -510,8 +510,8 @@ class TestAprs(unittest.TestCase):
             self.aprs.send_position_report(
                 mycall="CALL-32",
                 path=["WIDE1-1"],
-                lat_dmm="5132.07N",
-                long_dmm="00007.40W",
+                lat="5132.07N",
+                lon="00007.40W",
                 symbol_id="/",
                 symbol_code=">",
                 comment="Bad time",
@@ -524,8 +524,8 @@ class TestAprs(unittest.TestCase):
             self.aprs.send_position_report(
                 mycall="CALL-33",
                 path=["WIDE1-1"],
-                lat_dmm="BADLAT",
-                long_dmm="00007.40W",
+                lat="BADLAT",
+                lon="00007.40W",
                 symbol_id="/",
                 symbol_code=">",
                 comment="Bad lat"
@@ -537,8 +537,8 @@ class TestAprs(unittest.TestCase):
             self.aprs.send_position_report(
                 mycall="CALL-34",
                 path=["WIDE1-1"],
-                lat_dmm="5132.07N",
-                long_dmm="BADLONG",
+                lat="5132.07N",
+                lon="BADLONG",
                 symbol_id="/",
                 symbol_code=">",
                 comment="Bad long"
@@ -550,8 +550,8 @@ class TestAprs(unittest.TestCase):
             self.aprs.send_position_report(
                 mycall="CALL-35",
                 path=["WIDE1-1"],
-                lat_dmm="5132.07N",
-                long_dmm="00007.40W",
+                lat="5132.07N",
+                lon="00007.40W",
                 symbol_id="XX",
                 symbol_code=">",
                 comment="Bad symbol id"
@@ -563,8 +563,8 @@ class TestAprs(unittest.TestCase):
             self.aprs.send_position_report(
                 mycall="CALL-36",
                 path=["WIDE1-1"],
-                lat_dmm="5132.07N",
-                long_dmm="00007.40W",
+                lat="5132.07N",
+                lon="00007.40W",
                 symbol_id="/",
                 symbol_code=">>",
                 comment="Bad symbol code"
@@ -576,8 +576,8 @@ class TestAprs(unittest.TestCase):
             self.aprs.send_position_report(
                 mycall="CALL-37",
                 path=["WIDE1-1"],
-                lat_dmm="5132.07N",
-                long_dmm="00007.40W",
+                lat="5132.07N",
+                lon="00007.40W",
                 symbol_id="/",
                 symbol_code=">",
                 comment="X" * 44
@@ -589,8 +589,8 @@ class TestAprs(unittest.TestCase):
             self.aprs.send_position_report(
                 mycall="CALL-38",
                 path=["WIDE1-1"],
-                lat_dmm="5132.07N",
-                long_dmm="00007.40W",
+                lat="5132.07N",
+                lon="00007.40W",
                 symbol_id="/",
                 symbol_code=">",
                 comment="Test"
@@ -605,8 +605,8 @@ class TestAprs(unittest.TestCase):
             self.aprs.send_position_report(
                 mycall="CALL-39",
                 path=["WIDE1-1"],
-                lat_dmm="5132.07N",
-                long_dmm="00007.40W",
+                lat="5132.07N",
+                lon="00007.40W",
                 symbol_id="/",
                 symbol_code=">",
                 comment="Test"
@@ -760,5 +760,90 @@ class TestAprs(unittest.TestCase):
         frame = proto.written_frames[0]
         self.assertIn(b"A", frame.info)
 
-if __name__ == "__main__":
-    unittest.main()
+    def test_send_position_report_standard(self):
+        self.aprs.initialized = True
+        self.aprs.kiss_protocol = self.aprs.kiss  # Use dummy
+        self.aprs.send_position_report(
+            mycall="5B4AON-9",
+            path=["WIDE1-1"],
+            lat="3511.14N",
+            lon="03322.94E",
+            symbol_id="/",
+            symbol_code=">",
+            comment="Test standard",
+            time_dhm="011234z",
+            compressed=False,
+        )
+        frame = self.aprs.kiss_protocol.protocol.written_frames[-1]
+        self.assertIsNotNone(frame)
+        info = frame.info.decode()
+        self.assertTrue(
+            info.startswith("/011234z3511.14N/03322.94E>Test standard")
+            or info.startswith("!3511.14N/03322.94E>Test standard")
+        )
+
+    def test_send_position_report_compressed(self):
+        self.aprs.initialized = True
+        self.aprs.kiss_protocol = self.aprs.kiss  # Use dummy
+        self.aprs.send_position_report(
+            mycall="5B4AON-9",
+            path=["WIDE1-1"],
+            lat=35.1856,
+            lon=33.3823,
+            symbol_id="/",
+            symbol_code=">",
+            comment="Test compressed",
+            time_dhm="011234z",
+            compressed=True,
+        )
+        frame = self.aprs.kiss_protocol.protocol.written_frames[-1]
+        self.assertIsNotNone(frame)
+        info = frame.info.decode()
+        # Compressed format starts with /time symbol_id, then 8 base91 chars, then 3 spaces, symbol_code, comment
+        self.assertTrue(info.startswith("/011234z/"))
+        self.assertIn("Test compressed", info)
+        # Check length of base91 encoded part (should be 8 chars after symbol_id)
+        base91_part = info[10+1:10+1+8]  # after /011234z and symbol_id
+        self.assertEqual(len(base91_part), 8)
+
+    def test_send_position_report_invalid_callsign(self):
+        self.aprs.initialized = True
+        self.aprs.kiss_protocol = self.aprs.kiss
+        with self.assertRaises(ValueError):
+            self.aprs.send_position_report(
+                mycall="BADCALL",
+                path=["WIDE1-1"],
+                lat="3511.14N",
+                lon="03322.94E",
+                symbol_id="/",
+                symbol_code=">",
+                comment="Test",
+            )
+
+    def test_send_position_report_invalid_latlon_for_compressed(self):
+        self.aprs.initialized = True
+        self.aprs.kiss_protocol = self.aprs.kiss
+        with self.assertRaises(ValueError):
+            self.aprs.send_position_report(
+                mycall="5B4AON-9",
+                path=["WIDE1-1"],
+                lat="notafloat",
+                lon="notafloat",
+                symbol_id="/",
+                symbol_code=">",
+                comment="Test",
+                compressed=True,
+            )
+
+    def test_send_position_report_not_initialized(self):
+        self.aprs.initialized = False
+        with self.assertRaises(AprsError):
+            self.aprs.send_position_report(
+                mycall="5B4AON-9",
+                path=["WIDE1-1"],
+                lat="3511.14N",
+                lon="03322.94E",
+                symbol_id="/",
+                symbol_code=">",
+                comment="Test",
+            )

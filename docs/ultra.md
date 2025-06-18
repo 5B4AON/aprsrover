@@ -55,7 +55,7 @@ ultra.add_observer(on_distance)
 async def main():
     dist = await ultra.measure_distance_async()
     print(f"Measured (async): {dist:.1f} cm")
-    ultra.start_monitoring_async(interval=0.5)
+    ultra.start_monitoring(interval=0.5)
     await asyncio.sleep(2)
     ultra.stop_monitoring_async()
 

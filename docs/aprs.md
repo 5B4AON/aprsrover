@@ -64,6 +64,28 @@ aprs.initialized = True
 aprs.kiss_protocol = DummyKISS()
 ```
 
+### APRS Compressed Position Report Example
+
+```python
+from aprsrover.aprs import Aprs
+
+aprs = Aprs(kiss=...)  # Inject your KISS backend
+aprs.initialized = True
+aprs.kiss_protocol = aprs.kiss
+
+aprs.send_position_report(
+    mycall="5B4AON-9",
+    path=["WIDE1-1"],
+    lat=35.1856,
+    lon=33.3823,
+    symbol_id="/",
+    symbol_code=">",
+    comment="Compressed position",
+    time_dhm="011234z",
+    compressed=True,
+)
+```
+
 ## Notes
 - All hardware access is abstracted for easy mocking in tests.
 - See the [examples/README.md](../examples/README.md) for more advanced usage scenarios.

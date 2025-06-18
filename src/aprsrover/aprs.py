@@ -489,25 +489,27 @@ class Aprs:
         self,
         mycall: str,
         path: list[str],
-        lat_dmm: str,
-        long_dmm: str,
+        lat: float | str,
+        lon: float | str,
         symbol_id: str,
         symbol_code: str,
         comment: str,
         time_dhm: Optional[str] = None,
+        compressed: bool = False,
     ) -> None:
         """
-        Sends an APRS position report.
+        Sends an APRS position report (standard or compressed).
 
         Args:
             mycall: My callsign (3-6 uppercase alphanumeric characters, then '-', then 1-2 digits, max 9 chars).
             path: The digipeater path as a list of strings.
-            lat_dmm: The latitude in DMM format (7 digits + N/S, e.g., '5132.07N').
-            long_dmm: The longitude in DMM format (e.g., '00007.40W').
+            lat: Latitude (float in decimal degrees if compressed, else DMM string).
+            lon: Longitude (float in decimal degrees if compressed, else DMM string).
             symbol_id: The symbol ID (1 character).
             symbol_code: The symbol code (1 character).
             comment: The comment field (43 characters).
             time_dhm: Optional time in DHM format (6 digits followed by 'z', e.g., '011234z').
+            compressed: If True, use APRS compressed position format.
 
         Raises:
             AprsError: If the KISS protocol is not initialized or sending fails.
@@ -519,22 +521,49 @@ class Aprs:
 
         self._validate_callsign(mycall, "mycall")
         self._validate_path(path)
-        self._validate_lat_dmm(lat_dmm)
-        self._validate_long_dmm(long_dmm)
         self._validate_symbol(symbol_id, "symbol_id")
         self._validate_symbol(symbol_code, "symbol_code")
         self._validate_comment(comment)
         self._validate_time_dhm(time_dhm, required=False)
 
-        # Build info field (with or without time)
-        if time_dhm:
-            info = (
-                f"/{time_dhm}{lat_dmm}{symbol_id}{long_dmm}{symbol_code}{comment}"
-            )
+        if compressed:
+            if not (isinstance(lat, float) and isinstance(lon, float)):
+                raise ValueError("lat and lon must be float when using compressed format.")
+
+            def to_base91(val: int) -> str:
+                # Returns a 1-character base91 string for 0 <= val < 91
+                return chr(val + 33)
+
+            def encode_compressed(lat: float, lon: float) -> tuple[str, str]:
+                # See APRS spec for details
+                y = int(round(380926 * (90 - lat)))
+                x = int(round(190463 * (180 + lon)))
+                lat_enc = ""
+                lon_enc = ""
+                for i in range(4):
+                    lat_enc = to_base91(y % 91) + lat_enc
+                    y //= 91
+                    lon_enc = to_base91(x % 91) + lon_enc
+                    x //= 91
+                return lat_enc, lon_enc
+
+            lat_enc, lon_enc = encode_compressed(lat, lon)
+            # Altitude, course, speed, and other extensions can be encoded here if needed
+            # For now, fill with ' ' (space) for no extension
+            ext = "   "
+            if time_dhm:
+                info = f"/{time_dhm}{symbol_id}{lat_enc}{lon_enc}{ext}{symbol_code}{comment}"
+            else:
+                info = f"!{symbol_id}{lat_enc}{lon_enc}{ext}{symbol_code}{comment}"
         else:
-            info = (
-                f"!{lat_dmm}{symbol_id}{long_dmm}{symbol_code}{comment}"
-            )
+            # Standard format: lat/lon as DMM strings
+            self._validate_lat_dmm(lat)  # type: ignore
+            self._validate_long_dmm(lon)  # type: ignore
+            if time_dhm:
+                info = f"/{time_dhm}{lat}{symbol_id}{lon}{symbol_code}{comment}"
+            else:
+                info = f"!{lat}{symbol_id}{lon}{symbol_code}{comment}"
+
         try:
             frame = Frame.ui(
                 destination=self.APRS_SW_VERSION,
